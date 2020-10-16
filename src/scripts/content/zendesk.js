@@ -7,11 +7,11 @@ togglbutton.render('.pane_header:not(.toggl)', { observe: true }, function (
   const projectName = $('title').textContent;
 
   const titleFunc = function () {
-    const titleElem = $('.selected .tab_text .title');
+    const titleElem = $('.editable .ember-view input', elem);
     const ticketNum = location.href.match(/tickets\/(\d+)/);
 
     if (titleElem !== null) {
-      description = titleElem.textContent.trim();
+      description = titleElem.value.trim();
     }
 
     if (ticketNum) {
@@ -32,4 +32,37 @@ togglbutton.render('.pane_header:not(.toggl)', { observe: true }, function (
   }
 
   elem.insertBefore(link, elem.querySelector('.btn-group'));
+});
+
+togglbutton.render('[data-test-id="customer-context-tab-navigation"]', { observe: true }, function (
+  elem
+) {
+  // Manual check for existence in this SPA.
+  if (elem.querySelector('.toggl-button')) return;
+
+  const titleFunc = function () {
+    let description;
+
+    const ticketNum = location.href.match(/tickets\/(\d+)/);
+
+    if (ticketNum) {
+      const id = ticketNum[1].trim();
+      const titleElem = document.querySelector(`[data-side-conversations-anchor-id="${id}"] [data-test-id="ticket-pane-subject"]`);
+
+      if (titleElem !== null) {
+        description = titleElem.value.trim();
+      }
+
+      description = '#' + id + ' ' + description;
+    }
+
+    return description;
+  };
+
+  const link = togglbutton.createTimerLink({
+    className: 'zendesk-agent-ws',
+    description: titleFunc
+  });
+
+  elem.prepend(link);
 });

@@ -10,9 +10,10 @@ const inheritsFrom = function (child, parent) {
 const AutoComplete = function (el, item, elem) {
   this.type = el;
   this.el = document.querySelector('#' + el + '-autocomplete');
+  this.content = this.el.parentElement;
   this.filter = document.querySelector('#toggl-button-' + el + '-filter');
-  this.field = this.el.closest('.Dialog__field');
-  this.overlay = this.field.querySelector('.Popdown__overlay');
+  this.field = this.el.closest('.TB__Dialog__field');
+  this.overlay = this.field.querySelector('.TB__Popdown__overlay');
   this.placeholderItem = document.querySelector(
     '#toggl-button-' + el + '-placeholder'
   );
@@ -31,10 +32,20 @@ const AutoComplete = function (el, item, elem) {
 AutoComplete.prototype.addEvents = function () {
   const that = this;
 
-  that.placeholderItem.addEventListener('click', function (e) {
-    setTimeout(function () {
-      that.toggleDropdown();
-    }, 50);
+  const bindedToggleDropdown = that.toggleDropdown.bind(that);
+
+  this.field.addEventListener('focus', function (e) {
+    that.openDropdown();
+
+    setTimeout(() => {
+      that.placeholderItem.addEventListener('click', bindedToggleDropdown);
+    }, 150);
+  });
+
+  this.field.addEventListener('focusout', function (e) {
+    if (that.field.contains(e.relatedTarget)) return;
+    that.placeholderItem.removeEventListener('click', bindedToggleDropdown);
+    that.closeDropdown();
   });
 
   that.filter.addEventListener('keydown', function (e) {
@@ -67,8 +78,10 @@ AutoComplete.prototype.addEvents = function () {
   });
 
   that.overlay.addEventListener('click', function (e) {
-    e.stopPropagation();
-    that.closeDropdown();
+    if (!that.content.contains(e.target) && !that.placeholderItem.contains(e.target)) {
+      e.stopPropagation();
+      that.closeDropdown();
+    }
   });
 };
 
@@ -100,7 +113,12 @@ AutoComplete.prototype.toggleDropdown = function () {
 };
 
 AutoComplete.prototype.openDropdown = function () {
-  this.filter.closest('.Dialog__field').classList.toggle('open', true);
+  if (this.field.classList.contains('open')) {
+    return;
+  }
+  this.field.classList.toggle('open', true);
+  // Avoid trapping focus inside the dropdown field while tabbing around
+  this.field.setAttribute('tabindex', '-1');
   this.filter.focus();
   this.listItems = this.el.querySelectorAll(this.item);
   this.visibleItems = this.el.querySelectorAll('.' + this.type + '-row');
@@ -114,31 +132,29 @@ AutoComplete.prototype.closeDropdown = function (t) {
   that.field.classList.toggle('open', false);
   if (that.addLink) that.addLink.parentNode.classList.remove('add-allowed');
   that.clearFilters();
+
+  // Delay enabling of tabbing again to avoid trapping focus inside this dropdown
+  // completely when using SHIFT+TAB.
+  setTimeout(() => that.field.setAttribute('tabindex', '0'));
 };
 
 AutoComplete.prototype.updateHeight = function () {
-  const bodyRect = document.body.getBoundingClientRect();
+  const windowHeight = window.innerHeight;
   const elRect = this.el.getBoundingClientRect();
   let popdownStyle = '';
-  let listStyle = 'max-height:auto;';
   let calc;
 
-  if (bodyRect.bottom > 0 && elRect.bottom + 25 >= bodyRect.bottom) {
-    calc = window.scrollY + bodyRect.bottom - elRect.top - 10;
+  if (windowHeight > 0 && elRect.bottom + 25 >= windowHeight) {
+    calc = windowHeight - elRect.top + 45;
     if (calc < 55) {
       calc = 55;
     }
     popdownStyle = 'max-height: ' + calc + 'px;';
-    // Not sure, but probably: 55=filter, 25=??, 24=clear-tags
-    listStyle = 'max-height: ' + (calc - 55 - 25 - 24) + 'px;';
   } else {
     return;
   }
 
-  this.el.closest('.Popdown__content').style = popdownStyle;
-  if (this.type === 'tag') {
-    document.querySelector('.tag-list').style = listStyle;
-  }
+  this.el.closest('.TB__Popdown__content').style = popdownStyle;
 };
 
 //* Project autocomplete *//
@@ -625,10 +641,20 @@ TagAutoComplete.prototype.setup = function (selected, wid) {
 TagAutoComplete.prototype.addEvents = function () {
   const that = this;
 
-  that.placeholderItem.addEventListener('click', function (e) {
-    setTimeout(function () {
-      that.toggleDropdown();
-    }, 50);
+  const bindedToggleDropdown = that.toggleDropdown.bind(that);
+
+  this.field.addEventListener('focus', function (e) {
+    that.openDropdown();
+
+    setTimeout(() => {
+      that.placeholderItem.addEventListener('click', bindedToggleDropdown);
+    }, 150);
+  });
+
+  this.field.addEventListener('focusout', function (e) {
+    if (that.field.contains(e.relatedTarget)) return;
+    that.placeholderItem.removeEventListener('click', bindedToggleDropdown);
+    that.closeDropdown();
   });
 
   this.el.addEventListener('click', function (e) {
@@ -657,8 +683,10 @@ TagAutoComplete.prototype.addEvents = function () {
   });
 
   that.overlay.addEventListener('click', function (e) {
-    e.stopPropagation();
-    that.closeDropdown();
+    if (!that.content.contains(e.target) && !that.placeholderItem.contains(e.target)) {
+      e.stopPropagation();
+      that.closeDropdown();
+    }
   });
 
   this.clearSelected && this.clearSelected.addEventListener('click', function (e) {
@@ -680,13 +708,31 @@ TagAutoComplete.prototype.selectTag = function (e) {
 };
 
 TagAutoComplete.prototype.setSelected = function (tags) {
-  let i; let item;
-
   this.clearSelectedTags();
 
+  /**
+   * Create map of elements keyed to element .title attribute value.
+   * @param {NodeList} elements
+   */
+  const mapByTitle = function (elements) {
+    let i;
+    let title;
+    const result = {};
+
+    for (i = 0; i < elements.length; i += 1) {
+      title = elements[i].getAttribute('title');
+      result[title] = elements[i];
+    }
+
+    return result;
+  };
+
   if (tags) {
+    const current = mapByTitle(this.el.querySelectorAll('li[title]'));
+    let i; let item;
+
     for (i = 0; i < tags.length; i += 1) {
-      item = this.el.querySelector("li[title='" + tags[i] + "']");
+      item = current[tags[i]];
       if (!item) {
         this.addNew(tags[i]);
       } else {

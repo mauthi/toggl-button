@@ -3,13 +3,26 @@ import { Global, css } from '@emotion/core';
 import styled from '@emotion/styled';
 import browser from 'webextension-polyfill';
 
+import bugsnagClient from '../lib/bugsnag';
+import { sendMessage } from '../lib/messaging';
+import {
+  Content,
+  Row,
+  Heading,
+  Subheading,
+  Button,
+  CenteredButton,
+  Link
+} from '../@toggl/ui/components';
 import Logo from '../icons/Logo';
 import Spinner from './Spinner';
+import QuickStartGuide from './QuickStartGuide';
+import LoginForm from './LoginForm';
 
 export interface LoginProps {
   isLoggedIn: boolean;
   isPopup: boolean;
-  source: 'web-login' | 'install';
+  source: 'web-login' | 'install' | 'quick-start';
 }
 
 interface LoginState {
@@ -21,17 +34,45 @@ interface LoginState {
 async function login (setState: React.Dispatch<React.SetStateAction<LoginState>>) {
   setState({ loading: true, error: null, loggedIn: false });
 
-  const { error, success: loggedIn } = await browser.runtime.sendMessage({
+  const response = await sendMessage({
     type: 'sync',
     respond: true
   });
 
-  setState({ loading: false, error, loggedIn });
+  if (!response) {
+    setState({ loading: false, loggedIn: false, error: 'Unknown Error' });
+    return;
+  }
+
+  setState({
+    loading: false,
+    error: (response as FailureResponse).error,
+    loggedIn: response.success
+  });
 }
 
 export default function LoginPage ({ source, isLoggedIn, isPopup }: LoginProps) {
-  const [ state, setState ] = React.useState({ loading: false, error: null, loggedIn: isLoggedIn });
+  const [ state, setState ] = React.useState<LoginState>({ loading: false, error: null, loggedIn: isLoggedIn });
   const { loading, error, loggedIn } = state;
+
+  React.useEffect(() => {
+    if (error) {
+      bugsnagClient.notify(new Error(error), { context: 'login-page' });
+    }
+  }, [error]);
+
+  React.useEffect(() => {
+    if (source === 'web-login' && loading) document.title = 'Logging in to Toggl Button';
+    if (source === 'web-login' && error) document.title = 'Could not login to Toggl Button';
+    if (source === 'quick-start' || loggedIn) document.title = 'Welcome to Toggl Button';
+  }, [source, loading, error, loggedIn]);
+
+  const onLoginError = React.useCallback(
+    (error: string) => {
+      setState({ loading: false, loggedIn: false, error });
+    },
+    [setState]
+  );
 
   let content = (
     <Content>
@@ -57,50 +98,44 @@ export default function LoginPage ({ source, isLoggedIn, isPopup }: LoginProps) 
           <Row>
             <Heading>Logging you in</Heading>
           </Row>
-          <CenteredButton>
-            <Spinner />
-          </CenteredButton>
+          <Row>
+            <CenteredButton>
+              <Spinner />
+            </CenteredButton>
+          </Row>
         </Content>
       );
     }
 
     if (error) {
       content = (
-        <Content>
+        <Content style={{ height: '100%' }}>
           <Row>
             <Heading>Uh-oh.</Heading>
-            <Subheading>Something went wrong...</Subheading>
+            <Subheading>
+              {'Something went wrong...'}
+              <br />
+              {error}
+            </Subheading>
           </Row>
-          <Subheading>
-            {error}
-          </Subheading>
           <Row>
             <a href="login.html?source=install" style={{ marginBottom: 21 }}>
               <Button>Try again</Button>
             </a>
-            <Subheading>or</Subheading>
-            <a href="mailto:support@toggl.com" style={{ color: 'white' }}>
-              <Subheading style={{ margin: 0 }}>Contact support</Subheading>
-            </a>
+            <Subheading>or log in directly</Subheading>
+            <LoginForm
+              onSubmit={performLogin}
+              onSuccess={onLoginSuccess}
+              onError={onLoginError}
+            />
           </Row>
         </Content>
       );
     }
   }
 
-  if (loggedIn) {
-    content = (
-      <Content>
-        <Row>
-          <Heading>You're all set!</Heading>
-          <Subheading>Click the Toggl icon in your toolbar to start tracking time</Subheading>
-        </Row>
-        <Button onClick={closePage}>Close page</Button>
-        <Link href="settings.html?tab=integrations">
-          Want to enable Toggl Button in other tools? Visit the integration settings.
-        </Link>
-      </Content>
-    );
+  if (source === 'quick-start' || loggedIn) {
+    content = <QuickStartGuide />
   }
 
   return (
@@ -126,8 +161,8 @@ function HeaderLinks ({ loggedIn }: Pick<LoginState, 'loggedIn'>) {
   return (
     <Links>
       <li>
-        <Link href="https://support.toggl.com/browser-extensions">
-          Support
+        <Link href="settings.html">
+          Settings
         </Link>
       </li>
       <li>
@@ -136,13 +171,23 @@ function HeaderLinks ({ loggedIn }: Pick<LoginState, 'loggedIn'>) {
         </Link>
       </li>
       <li>
+        <Link href="settings.html?tab=pomodoro">
+          Pomodoro
+        </Link>
+      </li>
+      <li>
+        <Link href="settings.html?tab=telemetry">
+          Telemetry
+        </Link>
+      </li>
+      <li>
         <Link href="settings.html?tab=account">
           Account
         </Link>
       </li>
       <li>
-        <Link href="settings.html">
-          Settings
+        <Link href="https://support.toggl.com/browser-extensions">
+          User Guide
         </Link>
       </li>
     </Links>
@@ -170,23 +215,51 @@ function SignupButton ({ isPopup }: Pick<LoginProps, 'isPopup'>) {
 
 const openPage = (url: string) => () => browser.tabs.create({ url });
 
-const closePage = async () => {
-  const tab = await browser.tabs.getCurrent();
-  browser.tabs.remove(tab.id);
+const performLogin = (username: string, password: string) => (
+  sendMessage({ type: 'login', username, password })
+);
+
+const onLoginSuccess = () => {
+  location.href = 'login.html?source=quick-start';
 };
 
 const page = css`
   html, body, #app {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    font-family: GTWalsheim,Arial,sans-serif;
     margin: 0;
-    background: #ca9eda;
+    background: #412a4c;
     display: flex;
     flex-direction: column;
   }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  p {
+    line-height: 1.71;
+    font-weight: 500;
+  }
+
+  p.small {
+    font-size: 13px;
+    line-height: 1.1;
+  }
+
+  p.small a {
+    line-height: 1.1;
+    text-decoration: underline;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+  }
+
 `;
 
 const Header = styled.header`
-  padding: 30px 24px;
+  padding: 40px;
   justify-content: space-between;
  `;
 
@@ -197,28 +270,15 @@ const Links = styled.ul`
 
   & li {
     margin-left: 25px;
-  }
-`;
-
-const Link = styled.a`
-  font-size: 13px;
-  font-weight: 500;
-  color: #282a2d;
-  line-height: 36px;
-  text-decoration: none;
-
-  :hover, :focus, :active {
-    text-decoration: underline;
+    font-size: 13px;
   }
 `;
 
 const ContentWrapper = styled.main`
-  height: 100%;
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
   flex-direction: column;
+  justify-content: center;
 `;
 
 const LogoWrapper = styled.span`
@@ -231,63 +291,3 @@ const LogoWrapper = styled.span`
   }
 `;
 
-const Content = styled.div`
-  min-height: 40vh;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-direction: column;
-`;
-
-const Row = styled.div`
-  display: flex;
-  flex-direction: column;
-  text-align: center;
-  & h1 {
-    margin-bottom: 21px;
-  }
-`;
-
-const Heading = styled.h1`
-  font-size: 48px;
-  color: white;
-  font-weight: 700;
-  margin: 0;
-`;
-
-const Subheading = styled(Heading)`
-  color: white;
-  font-size: 21px;
-  font-weight: 500;
-`;
-
-const Button = styled.button`
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: baseline;
-  justify-content: center;
-  background-color: #e24f54;
-  border: 0;
-  border-radius: 24px;
-  color: #fff;
-  cursor: pointer;
-  display: inline-block;
-  font-size: 14px;
-  font-weight: 500;
-  height: 48px;
-  line-height: 48px;
-  min-width: 218px;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  width: auto;
-  padding: 0 15px;
-  outline: none;
-`;
-
-const CenteredButton = styled(Button)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;

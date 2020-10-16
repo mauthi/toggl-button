@@ -6,6 +6,14 @@
 */
 'use strict';
 
+function getContainer (selector) {
+  const visibleContainers = Array
+    .from(document.querySelectorAll(selector))
+    .filter(isElementVisible);
+
+  return visibleContainers.length > 0 && visibleContainers[0];
+}
+
 // We need to find proper project element, which differs between old and new layout
 function projectSelector () {
   const oldLayoutProjectElement = $('.tfs-selector span');
@@ -15,29 +23,34 @@ function projectSelector () {
   return projectElement ? projectElement.textContent : '';
 }
 
-function descriptionSelector () {
-  const formIdElem = $('.work-item-form-id span');
-  const formTitleElem = $('.work-item-form-title input');
+function descriptionSelectorFactory (container) {
+  return function () {
+    const formIdElem = $('.work-item-form-id span', container);
+    const formTitleElem = $('.work-item-form-title input', container);
 
-  return (formIdElem ? formIdElem.innerText : '') +
-    ' ' +
-    (formTitleElem ? formTitleElem.value : '');
+    return (formIdElem ? formIdElem.innerText : '') +
+      ' ' +
+      (formTitleElem ? formTitleElem.value : '');
+  };
+}
+
+function isElementVisible (element) {
+  return element && element.offsetParent !== null;
 }
 
 togglbutton.render(
   '.witform-layout-content-container:not(.toggl)',
   { observe: true },
   function () {
-    const container = $('.work-item-form-header-controls-container');
-
-    const vsActiveClassElem = $(
-      '.commandbar.header-bottom > .commandbar-item > .displayed'
-    );
+    const activeButtonContainer = getContainer('.work-item-form-header-controls-container');
+    const activeHeaderContainer = getContainer('.work-item-form-main-header');
+    const vsActiveClassElem = $('.commandbar.header-bottom > .commandbar-item > .displayed');
 
     const link = togglbutton.createTimerLink({
       className: 'visual-studio-online',
-      description: descriptionSelector,
-      projectName: projectSelector
+      description: descriptionSelectorFactory(activeHeaderContainer),
+      projectName: projectSelector,
+      container: '.work-item-form-main-header'
     });
 
     // For new layout vs_activeClassElem is not longer required, we can skip it
@@ -46,7 +59,7 @@ togglbutton.render(
       vsActiveClassElem.textContent === 'Work Items' ||
       vsActiveClassElem.textContent === 'Backlogs'
     ) {
-      container.appendChild(link);
+      activeButtonContainer.appendChild(link);
     }
   }
 );

@@ -1,188 +1,162 @@
 'use strict';
 
-// Older UI
-togglbutton.render(
-  '.details-pane-body:not(.toggl)',
-  { observe: true },
-  function (elem) {
-    const container = $('.sticky-view-placeholder', elem);
-    const description = $('#details_property_sheet_title', elem);
-    const project = $('#details_pane_project_tokenizer .token_name', elem);
+// Board view. Inserts button next to assignee/due date.
+togglbutton.render('.BoardCard .BoardCard-contents:not(.toggl)', { observe: true },
+  boadCardElem => {
+    const descriptionSelector = () => boadCardElem.querySelector('.BoardCard-name').textContent.trim();
 
-    const descFunc = function () {
-      return description ? description.value : '';
-    };
+    const projectSelector = () => {
+      const projectElement = document.querySelector('.TopbarPageHeaderStructure-titleRow > h1');
+      if (!projectElement) return '';
 
-    const projectFunc = function () {
-      return (
-        (project && project.textContent) ||
-        ($('.ancestor-projects', elem) &&
-          $('.ancestor-projects', elem).textContent) ||
-        ''
-      );
+      return projectElement.textContent.trim();
     };
 
     const link = togglbutton.createTimerLink({
-      className: 'asana',
-      description: descFunc,
-      projectName: projectFunc
+      className: 'asana-board-view',
+      description: descriptionSelector,
+      projectName: projectSelector,
+      buttonType: 'minimal'
+      // N.B. tags cannot be supported on board view as the information is not available.
     });
 
-    container.parentNode.insertBefore(link, container.nextSibling);
+    const injectContainer = boadCardElem.querySelector('.BoardCard-rightMetadata');
+    if (injectContainer) {
+      injectContainer.insertAdjacentElement('afterbegin', link);
+    }
   }
 );
 
-// New UI v1
-togglbutton.render(
-  '#right_pane__contents .SingleTaskPane:not(.toggl)',
-  { observe: true },
-  function (elem) {
-    const container = $('.SingleTaskTitleRow', elem);
-    const description = $('.SingleTaskTitleRow .simpleTextarea', elem);
-    const project = $('.TaskProjectPill-projectName div', elem);
+// Spreadsheet view. Inserts button next to to the task name.
+togglbutton.render('.SpreadsheetRow .SpreadsheetTaskName:not(.toggl)', { observe: true },
+  function (taskNameCell) {
+    const container = taskNameCell.closest('.SpreadsheetRow');
 
-    if (!container) {
+    if (container.querySelector('.toggl-button')) {
+      // Due to the way this UI is rendered, we must check for existence of old buttons manually.
       return;
     }
 
-    const descFunc = function () {
-      return description ? description.value : '';
+    const descriptionSelector = () => taskNameCell.querySelector('textarea').textContent.trim();
+    const projectHeaderSelector = () => {
+      // Try to look for for page project title instead.
+      const projectHeader = document.querySelector('.TopbarPageHeaderStructure.ProjectPageHeader .TopbarPageHeaderStructure-title');
+      if (!projectHeader) {
+        return '';
+      }
+      return projectHeader.textContent
+        .replace(/\u00a0/g, ' ') // There can be &nbsp; in Asana header content
+        .trim();
+    };
+    const projectSelector = () => {
+      const projectCell = container.querySelector('.SpreadsheetTaskRow-projectsCell');
+      if (!projectCell) {
+        // Try to look for for page project title instead.
+        return projectHeaderSelector();
+      }
+
+      // There can be multiple projects, but we can't support trying to match multiple yet.
+      const firstProject = projectCell.querySelector('.Pill');
+      return firstProject ? firstProject.textContent.trim() : projectHeaderSelector();
     };
 
-    const projectFunc = function () {
-      return (
-        (project && project.textContent) ||
-        ($('.TaskAncestry-ancestorProjects', elem) &&
-          $('.TaskAncestry-ancestorProjects', elem).textContent) ||
-        ''
-      );
+    const tagsSelector = () => {
+      const tags = container.querySelectorAll('.SpreadsheetTaskRow-tagsCell .Pill');
+      return [...tags].map(tag => tag.textContent.trim());
     };
 
     const link = togglbutton.createTimerLink({
-      className: 'asana-new',
-      description: descFunc,
-      projectName: projectFunc
+      className: 'asana-spreadsheet',
+      description: descriptionSelector,
+      projectName: projectSelector,
+      tags: tagsSelector,
+      buttonType: 'minimal'
     });
 
-    container.after(link);
+    taskNameCell.insertAdjacentElement('afterend', link);
   }
 );
 
-// New UI v2
-togglbutton.render(
-  '#right_pane__contents .SingleTaskPane-body:not(.toggl)',
-  { observe: true },
+// 2020 My Tasks view, possibly other similar views.
+togglbutton.render('.MyTasksTaskRow:not(.toggl)', { observe: true },
   function (elem) {
-    const container = $('.TaskPaneAssigneeDueDateRowStructure', elem);
-    const description = $('.SingleTaskPane-titleRow .simpleTextarea', elem);
-    const project = $('.TaskProjectPill-projectName div', elem);
+    if (elem.querySelector('.toggl-button')) {
+      // Due to the way this UI is rendered, we must check for existence of old buttons manually.
+      return;
+    }
+    const descriptionSelector = () => elem.querySelector('.TaskName textarea').textContent;
 
-    const descFunc = function () {
-      return description ? description.value : '';
+    // attempt at separating projects and tags, which are not differentiated in the dom
+    // assume first pill is a project and any others are tags
+    // misses tags which are in the "..." overflow, and if there is a tag without a project
+    const pillSelector = (type) => {
+      const pills = [...elem.querySelectorAll('.NavigationLink')]
+        .map(pill => pill.textContent.trim());
+      if (type === 'project') {
+        return pills.length ? pills[0] : '';
+      } else if (type === 'tags') {
+        return pills.length > 1 ? pills.slice(1) : [];
+      }
     };
 
-    const projectFunc = function () {
-      return (
-        (project && project.textContent) ||
-        ($('.TaskAncestry-ancestorProjects', elem) &&
-          $('.TaskAncestry-ancestorProjects', elem).textContent) ||
-        ''
-      );
+    const projectSelector = () => {
+      return pillSelector('project');
+    };
+
+    const tagsSelector = () => {
+      return pillSelector('tags');
     };
 
     const link = togglbutton.createTimerLink({
-      className: 'asana-new',
-      description: descFunc,
-      projectName: projectFunc
+      className: 'asana-new-ui',
+      description: descriptionSelector,
+      projectName: projectSelector,
+      tags: tagsSelector,
+      buttonType: 'minimal'
     });
 
-    container.appendChild(link);
+    const wrapper = document.createElement('div');
+    wrapper.style.margin = '3px 0 0 4px';
+    wrapper.appendChild(link);
+
+    elem.appendChild(wrapper);
   }
 );
 
-// New UI Board view v1 and v2
+// Task detail. My Tasks, Spreadsheet, Board, ...
 togglbutton.render(
-  '.BoardColumnCardsContainer-item:not(.toggl)',
+  '.SingleTaskPaneSpreadsheet:not(.toggl)',
   { observe: true },
   function (elem) {
     if ($('.toggl-button', elem)) {
       return;
     }
-    const container = $('.BoardCardWithCustomProperties-assigneeAndDueDate', elem);
-    const description = $('.BoardCardWithCustomProperties-name', elem).textContent;
-    const project = $('.SidebarItemRow.is-selected').textContent;
 
-    const link = togglbutton.createTimerLink({
-      className: 'asana-board',
-      description: description,
-      projectName: project,
-      buttonType: 'minimal'
-    });
-
-    container.appendChild(link);
-  }
-);
-
-// New UI Board task detail view v1
-togglbutton.render(
-  '.SingleTaskTitleRow:not(.toggl)',
-  { observe: true },
-  function (elem) {
-    if ($('.toggl-button', elem)) {
-      return;
-    }
-    const container = $('.SingleTaskPaneToolbar', elem.parentNode);
-    const description = $('.SingleTaskTitleRow textarea', elem.parentNode).textContent;
-    const projectElement = $(
-      '.SingleTaskPane-projects .TaskProjectPill-projectName',
-      elem.parentNode
-    );
-
-    const link = togglbutton.createTimerLink({
-      className: 'asana-board',
-      description: description,
-      projectName: projectElement ? projectElement.textContent : '',
-      buttonType: 'minimal'
-    });
-
-    container.appendChild(link);
-  }
-);
-
-// New UI Board task detail view v2
-togglbutton.render(
-  '.SingleTaskPane-titleRow:not(.toggl)',
-  { observe: true },
-  function (elem) {
-    if ($('.toggl-button', elem)) {
-      return;
-    }
-    const container = $('.SingleTaskPaneToolbar');
-
-    const description = function () {
-      return $(
-        '.SingleTaskPane-titleRow .simpleTextarea',
-        elem.parentNode
-      ).textContent;
+    const descriptionSelector = () => {
+      return $('.SingleTaskTitleInput-taskName textarea', elem).textContent.trim();
     };
 
-    const projectElement = $(
-      '.SingleTaskPane-projects .TaskProjectPill-projectName',
-      elem.parentNode
-    );
+    const projectSelector = () => {
+      const projectEl = elem.querySelectorAll('.TaskProjectToken-potTokenizerPill');
+      return [...projectEl].map(el => el.textContent.trim());
+    };
+
+    const tagsSelector = () => {
+      const tags = elem.querySelectorAll('.TaskTagTokenPills .Pill');
+      return [...tags].map(tag => tag.textContent.trim());
+    };
 
     const link = togglbutton.createTimerLink({
       className: 'asana-board',
-      description: description,
-      projectName: projectElement ? projectElement.textContent : '',
+      description: descriptionSelector,
+      projectName: projectSelector,
+      tags: tagsSelector,
       buttonType: 'minimal'
     });
 
-    link.style.marginRight = '5px';
+    link.style.margin = '0 5px';
 
-    if (container) {
-      const closeButton = container.lastElementChild;
-      container.insertBefore(link, closeButton);
-    }
+    const firstButton = elem.querySelector('.SingleTaskPaneToolbar-button');
+    firstButton.parentNode.insertBefore(link, firstButton);
   }
 );

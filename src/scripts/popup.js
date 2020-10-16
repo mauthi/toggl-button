@@ -1,35 +1,32 @@
+/// <reference path="./index.d.ts" />
+
+import browser from 'webextension-polyfill';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { isSameDay } from 'date-fns';
+import { addSeconds, differenceInSeconds } from 'date-fns';
 
 import { secToHhmmImproved } from './@toggl/time-format-utils';
+import { formatDuration } from './@toggl/time-format-utils/format-duration';
 import Summary from './components/Summary';
 import TimeEntriesList from './components/TimeEntriesList';
-import Timer, { formatDuration } from './components/Timer';
+import Pomodoro from './components/Pomodoro';
+import Timer from './components/Timer';
 import { ProjectAutoComplete, TagAutoComplete } from './lib/autocomplete';
 import { parseDuration } from './lib/timerUtils';
+import { groupTimeEntriesByDay } from './lib/groupUtils';
 import renderLogin from './initializers/login';
-
-const browser = require('webextension-polyfill');
 
 let TogglButton = browser.extension.getBackgroundPage().TogglButton;
 const FF = navigator.userAgent.indexOf('Chrome') === -1;
-
-const ENTRIES_LIST_LIMIT = 15;
 
 if (FF) {
   document.querySelector('body').classList.add('ff');
 }
 
-window.PopUp = {
+const Popup = {
   $postStartText: ' post-start popup',
   $popUpButton: null,
-  $togglButton: document.querySelector('.stop-button'),
-  $resumeButton: document.querySelector('.resume-button'),
   $errorLabel: document.querySelector('.error'),
-  $editButton: document.querySelector('.edit-button'),
-  $tagIcon: document.querySelector('.tag-icon'),
-  $projectBullet: document.querySelector('.timer .tb-project-bullet'),
   $projectAutocomplete: null,
   $tagAutocomplete: null,
   $timer: null,
@@ -41,7 +38,7 @@ window.PopUp = {
   $billable: null,
   $header: document.querySelector('.header'),
   $menuView: document.querySelector('#menu'),
-  $editView: document.querySelector('#entry-form'),
+  $editView: document.querySelector('#toggl-button-entry-form'),
   $loginView: document.querySelector('#login-view'),
   $revokedWorkspaceView: document.querySelector('#revoked-workspace'),
   $entries: document.querySelector('.entries-list'),
@@ -69,16 +66,12 @@ window.PopUp = {
               JSON.stringify(TogglButton.$latestStoppedEntry)
             );
           }
-        } else {
-          PopUp.showCurrentDuration(true);
         }
         if (!PopUp.$header.getAttribute('data-view')) {
           PopUp.switchView(PopUp.$menuView);
         }
 
-        PopUp.renderTimer();
-        PopUp.renderEntriesList();
-        PopUp.renderSummary();
+        Popup.renderApp();
       } else {
         localStorage.setItem('latestStoppedEntry', '');
         PopUp.switchView(PopUp.$loginView);
@@ -92,10 +85,17 @@ window.PopUp = {
     }
   },
 
+  renderApp: function () {
+    PopUp.renderTimer();
+    PopUp.renderEntriesList();
+    PopUp.renderSummary();
+  },
+
   renderSummary: function () {
     const rootElement = document.getElementById('root-summary');
+    const totals = TogglButton.calculateSums();
     ReactDOM.unmountComponentAtNode(rootElement);
-    ReactDOM.render(<Summary />, rootElement);
+    ReactDOM.render(<Summary totals={totals} />, rootElement);
   },
 
   renderTimer: function () {
@@ -132,17 +132,17 @@ window.PopUp = {
             return PopUp.switchView(PopUp.$menuView);
           }
           if (response.type === 'Update') {
-            // Extension update?
+            // Edit form update
             TogglButton = browser.extension.getBackgroundPage().TogglButton;
             // Current TE update
-            PopUp.renderTimer();
+            PopUp.renderApp();
+          } else if (response.type === 'delete') {
+            PopUp.renderApp();
           } else if (response.type === 'update') {
             // Current TE update
             PopUp.renderTimer();
           } else if (response.type === 'Stop') {
-            PopUp.renderTimer();
-            PopUp.renderEntriesList();
-            PopUp.renderSummary();
+            PopUp.renderApp();
           } else if (response.type === 'list-continue' || response.type === 'New Entry') {
             PopUp.renderTimer();
             PopUp.renderEntriesList();
@@ -168,50 +168,18 @@ window.PopUp = {
   },
 
   renderEntriesList: function () {
+    if (TogglButton.pomodoroFocusMode && TogglButton.pomodoroAlarm) {
+      ReactDOM.render(<Pomodoro entry={TogglButton.$curEntry} interval={TogglButton.pomodoroInterval} />, document.getElementById('root-time-entries-list'));
+      return;
+    }
     const entries = TogglButton.$user.time_entries;
     if (!entries || entries.length < 1) {
+      ReactDOM.render(<TimeEntriesList />, document.getElementById('root-time-entries-list'));
       return;
     }
-
-    const hasExistingGroup = (entry) => ([te]) => {
-      return isSameDay(te.start, entry.start) &&
-        te.description === entry.description &&
-        te.pid === entry.pid &&
-        (te.tags || []).join(',') === (entry.tags || []).join(',') &&
-        te.billable === entry.billable;
-    };
 
     // Transform entries into an ordered list of grouped time entries
-    const { listEntries, projects } = [...entries].reverse().reduce((sum, entry) => {
-      // Exclude running TE.
-      if (entry.duration < 0) {
-        return sum;
-      }
-
-      const existingGroupIndex = sum.listEntries.findIndex(hasExistingGroup(entry));
-      if (existingGroupIndex === -1) {
-        // This TE group has not been seen yet.
-        if (sum.listEntries.length >= ENTRIES_LIST_LIMIT) return sum;
-        sum.listEntries.push([entry]);
-      } else {
-        // This TE group already exists.
-        sum.listEntries[existingGroupIndex].push(entry);
-        sum.listEntries[existingGroupIndex].sort((a, b) => {
-          // Most recent entries first.
-          if (a.start > b.start) return -1;
-          if (b.start > a.start) return 1;
-          return 0;
-        });
-      }
-
-      const project = TogglButton.findProjectByPid(entry.pid);
-      if (project) sum.projects[project.id] = project;
-      return sum;
-    }, { listEntries: [], projects: {} });
-
-    if (!listEntries.length) {
-      return;
-    }
+    const { listEntries, projects } = groupTimeEntriesByDay(entries);
 
     // Render react tree
     ReactDOM.render(<TimeEntriesList timeEntries={listEntries} projects={projects} />, document.getElementById('root-time-entries-list'));
@@ -229,28 +197,41 @@ window.PopUp = {
   },
 
   /* Edit form functions */
-  updateEditForm: function (view) {
-    const pid = TogglButton.$curEntry.pid ? TogglButton.$curEntry.pid : 0;
-    const tid = TogglButton.$curEntry.tid ? TogglButton.$curEntry.tid : 0;
-    const wid = TogglButton.$curEntry.wid;
+
+  /**
+   * Render edit-form for given time entry object
+   * @param timeEntry {Toggl.TimeEntry} - The time entry object to render
+   */
+  renderEditForm: function (timeEntry) {
+    const pid = timeEntry.pid || 0;
+    const tid = timeEntry.tid || 0;
+    const wid = timeEntry.wid;
     const togglButtonDescription = document.querySelector(
       '#toggl-button-description'
     );
     const togglButtonDuration = document.querySelector('#toggl-button-duration');
+    const isCurrentEntry = TogglButton.$curEntry && TogglButton.$curEntry.id === timeEntry.id;
 
-    togglButtonDescription.value = TogglButton.$curEntry.description
-      ? TogglButton.$curEntry.description
-      : '';
-    togglButtonDuration.value = secToHhmmImproved(
-      new Date() - new Date(TogglButton.$curEntry.start),
-      { html: false }
+    const editView = document.getElementById('toggl-button-edit-form');
+    if (timeEntry.id && editView) {
+      editView.dataset.timeEntryId = timeEntry.id;
+      editView.dataset.workspaceId = timeEntry.wid;
+      editView.dataset.startTime = timeEntry.start;
+      editView.dataset.stopTime = timeEntry.stop || '';
+    }
+
+    const duration = differenceInSeconds(
+      new Date(isCurrentEntry ? undefined : timeEntry.stop),
+      new Date(timeEntry.start)
     );
+    togglButtonDescription.value = timeEntry.description || '';
+    togglButtonDuration.value = secToHhmmImproved(duration, { html: false });
 
     PopUp.$projectAutocomplete.setup(pid, tid);
-    PopUp.$tagAutocomplete.setup(TogglButton.$curEntry.tags, wid);
+    PopUp.$tagAutocomplete.setup(timeEntry.tags, wid);
 
-    PopUp.setupBillable(!!TogglButton.$curEntry.billable, pid);
-    PopUp.switchView(view);
+    PopUp.setupBillable(!!timeEntry.billable, pid);
+    PopUp.switchView(PopUp.$editView);
 
     // Put focus to the beginning of desctiption field
     togglButtonDescription.focus();
@@ -258,11 +239,15 @@ window.PopUp = {
     togglButtonDescription.scrollLeft = 0;
 
     PopUp.durationChanged = false;
-    PopUp.showCurrentDuration(true);
+    // Setup duration updater if entry is running
+    if (isCurrentEntry) {
+      PopUp.updateDurationInput(true);
+    }
   },
 
-  showCurrentDuration: function (startTimer) {
+  updateDurationInput: function (startTimer) {
     if (TogglButton.$curEntry === null) {
+      PopUp.stopDurationInput();
       return;
     }
 
@@ -275,12 +260,16 @@ window.PopUp = {
     }
 
     if (startTimer) {
-      if (!PopUp.$timer) {
-        PopUp.$timer = setInterval(function () {
-          PopUp.showCurrentDuration();
-        }, 1000);
-      }
+      PopUp.stopDurationInput();
+      PopUp.$timer = setInterval(function () {
+        if (process.env.DEBUG) console.log('🕒🐭 Tick tock, the mouse ran up the clock..');
+        PopUp.updateDurationInput();
+      }, 1000);
     }
+  },
+
+  stopDurationInput: function () {
+    clearInterval(PopUp.$timer);
   },
 
   updateBillable: function (pid, noOverwrite) {
@@ -319,7 +308,7 @@ window.PopUp = {
   },
 
   toggleBillable: function (visible) {
-    const tabIndex = visible ? '103' : '-1';
+    const tabIndex = visible ? '0' : '-1';
     PopUp.$billable.setAttribute('tabindex', tabIndex);
     PopUp.$billable.classList.toggle('no-billable', !visible);
   },
@@ -329,7 +318,9 @@ window.PopUp = {
     PopUp.$billable.classList.toggle('tb-checked', billable);
   },
 
-  submitForm: function () {
+  updateTimeEntry: function () {
+    PopUp.stopDurationInput();
+
     // Translate human duration input if submitted without blurring
     const $duration = document.querySelector('#toggl-button-duration');
     let duration = $duration.value;
@@ -358,14 +349,51 @@ window.PopUp = {
       billable: billable,
       service: 'dropdown'
     };
+    const editView = document.getElementById('toggl-button-edit-form');
+    const timeEntryId = editView.dataset.timeEntryId;
+    if (timeEntryId) {
+      request.id = +timeEntryId;
+    }
+    const workspaceId = editView.dataset.workspaceId;
+    if (workspaceId) {
+      request.wid = +workspaceId;
+    }
+
+    const startTime = editView.dataset.startTime;
+    const stopTime = editView.dataset.stopTime;
 
     if (duration) {
-      const start = new Date((new Date()).getTime() - duration * 1000);
-      request.start = start.toISOString();
-      request.duration = -1 * Math.floor(start.getTime() / 1000);
+      if (startTime && stopTime) {
+        request.start = new Date(startTime).toISOString();
+        request.duration = duration;
+        request.stop = addSeconds(new Date(startTime), duration).toISOString();
+      } else {
+        const start = new Date(
+          (new Date()).getTime() - duration * 1000
+        );
+        request.start = start.toISOString();
+        request.duration = -1 * Math.floor(start.getTime() / 1000);
+      }
     }
 
     PopUp.sendMessage(request);
+    PopUp.switchView(PopUp.$menuView);
+  },
+
+  deleteTimeEntry: function () {
+    const editView = document.getElementById('toggl-button-edit-form');
+    const timeEntryId = editView.dataset.timeEntryId;
+
+    const request = {
+      type: 'delete',
+      id: timeEntryId
+    };
+
+    Popup.sendMessage(request);
+    PopUp.switchView(PopUp.$menuView);
+  },
+
+  closeForm: function () {
     PopUp.switchView(PopUp.$menuView);
   },
 
@@ -386,22 +414,62 @@ window.PopUp = {
     document
       .querySelector('#toggl-button-update')
       .addEventListener('click', function (e) {
-        PopUp.submitForm(this);
+        PopUp.updateTimeEntry(this);
       });
 
     document
       .querySelector('#toggl-button-update')
       .addEventListener('keydown', function (e) {
         if (e.code === 'Enter' || e.code === 'Space') {
-          PopUp.submitForm(this);
+          PopUp.updateTimeEntry(this);
+        }
+      });
+
+    // Cancel button
+    document.querySelector('#tb-edit-form-cancel')
+      .addEventListener('click', function (e) {
+        e.preventDefault();
+        PopUp.closeForm();
+      });
+    document.querySelector('#tb-edit-form-cancel')
+      .addEventListener('keydown', function (e) {
+        if (e.code === 'Enter' || e.code === 'Space') {
+          e.preventDefault();
+          PopUp.closeForm();
+        }
+      });
+
+    // Delete button
+    document
+      .querySelector('#toggl-button-delete')
+      .addEventListener('click', function (e) {
+        PopUp.deleteTimeEntry(this);
+      });
+
+    document
+      .querySelector('#toggl-button-delete')
+      .addEventListener('keydown', function (e) {
+        if (e.code === 'Enter' || e.code === 'Space') {
+          PopUp.deleteTimeEntry(this);
         }
       });
 
     document
-      .querySelector('#entry-form form')
+      .querySelector('#toggl-button-entry-form form')
       .addEventListener('submit', function (e) {
-        PopUp.submitForm(this);
+        PopUp.updateTimeEntry(this);
         e.preventDefault();
+      });
+
+    document
+      .querySelector('#toggl-button-duration')
+      .addEventListener('focus', (e) => {
+        PopUp.stopDurationInput();
+      });
+    document
+      .querySelector('#toggl-button-duration')
+      .addEventListener('blur', (e) => {
+        PopUp.updateDurationInput(true);
       });
 
     PopUp.$projectAutocomplete.onChange(function (selected) {
@@ -438,11 +506,22 @@ window.PopUp = {
         e.preventDefault();
       }
     });
+  },
+
+  handleBackgroundMessage: function (request) {
+    if (process.env.DEBUG) {
+      console.log('Popup:handleBackgroundMessage', request);
+    }
+    switch (request.type) {
+      case 'bg/render-entries-list':
+        Popup.renderEntriesList();
+        break;
+    }
   }
 };
+window.PopUp = Popup;
 
 document.addEventListener('DOMContentLoaded', function () {
-  let onClickSendMessage;
   const req = {
     type: 'sync',
     respond: false
@@ -451,21 +530,6 @@ document.addEventListener('DOMContentLoaded', function () {
   try {
     PopUp.sendMessage(req);
     PopUp.showPage();
-    PopUp.$editButton.addEventListener('click', function () {
-      PopUp.updateEditForm(PopUp.$editView);
-    });
-    onClickSendMessage = function () {
-      const request = {
-        type: this.getAttribute('data-event'),
-        respond: true,
-        service: 'dropdown'
-      };
-      clearInterval(PopUp.$timer);
-      PopUp.$timer = null;
-
-      PopUp.sendMessage(request);
-    };
-    PopUp.$resumeButton.addEventListener('click', onClickSendMessage);
 
     document
       .querySelector('.header .sync-data')
@@ -523,6 +587,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!e.target.dataset.continueId) {
         return;
       }
+      e.stopPropagation();
       const id = e.target.dataset.continueId;
       const timeEntry = TogglButton.$user.time_entries.find((entry) => entry.id === +id);
 
@@ -543,4 +608,6 @@ document.addEventListener('DOMContentLoaded', function () {
       category: 'Popup'
     });
   }
+
+  browser.runtime.onMessage.addListener(Popup.handleBackgroundMessage);
 });

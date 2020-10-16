@@ -1,6 +1,7 @@
 {
-  "name": "Toggl Button: Productivity & Time Tracker",
-  "short_name": "Toggl Button",
+  "name": "Toggl Track: Productivity & Time Tracker",
+  "short_name": "Toggl Track",
+  "minimum_chrome_version": "63",
   "manifest_version": 2,
   "description":
     "Puts a timer into any web tool and allows quick real time productivity tracking with all the data stored on your Toggl account",
@@ -52,6 +53,6 @@
     "matches": ["*://*.toggl.com/*", "*://toggl.com/*"]
   },
   "content_security_policy":
-    "script-src 'self' 'unsafe-eval'; object-src 'self';",
+    "script-src 'self'; object-src 'self';",
   "web_accessible_resources": ["html/login.html"]
 }

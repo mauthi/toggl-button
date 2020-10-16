@@ -1,6 +1,6 @@
+import browser from 'webextension-polyfill';
 import bugsnagClient from './bugsnag';
 import storedOrigins from '../origins';
-const browser = require('webextension-polyfill');
 
 const ORIGINS_KEY = 'TogglButton-origins';
 
@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS = {
   startAutomatically: false,
   stopAutomatically: false,
   showRightClickButton: true,
+  darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
   showPostPopup: true,
   nannyCheckEnabled: true,
   nannyInterval: 3600000,
@@ -19,6 +20,11 @@ const DEFAULT_SETTINGS = {
   pomodoroSoundEnabled: true,
   pomodoroSoundVolume: 1,
   pomodoroStopTimeTrackingWhenTimerEnds: true,
+
+  pomodoroTickerEnabled: false,
+  pomodoroTickerFile: 'sounds/tick-tock.mp3',
+  pomodoroTickerVolume: 1,
+
   pomodoroInterval: 25,
   stopAtDayEnd: false,
   dayEndTime: '17:00',
@@ -26,15 +32,14 @@ const DEFAULT_SETTINGS = {
   rememberProjectPer: 'false',
   enableAutoTagging: false,
 
-  'dont-show-permissions': false,
-  'show-permissions-info': 0,
-  'settings-active-tab': 0,
   sendErrorReports: true,
   sendUsageStatistics: true
 };
 
 const LOCAL_ONLY = {
-  [ORIGINS_KEY]: true
+  [ORIGINS_KEY]: true,
+  timeEntriesTracked: true,
+  dismissedReviewPrompt: true
 };
 
 function isLocalOnly (key) {
@@ -180,7 +185,7 @@ export default class Db {
       : key;
 
     if (isLocalOnly(key)) {
-      return this.getLocalCollection(key);
+      return this.getLocal(key);
     }
 
     return browser.storage.sync.get(options)
@@ -254,15 +259,12 @@ export default class Db {
       });
   }
 
-  getLocalCollection (key) {
-    let collection = localStorage.getItem(key);
+  getLocal (key) {
+    const collection = localStorage.getItem(key);
     if (!collection) {
-      collection = {};
-    } else {
-      collection = JSON.parse(collection);
+      return null;
     }
-
-    return collection;
+    return JSON.parse(collection);
   }
 
   load (setting, defaultValue) {
@@ -290,6 +292,11 @@ export default class Db {
     if (c && callback !== null) {
       callback();
     }
+  }
+
+  async bumpTrackedCount () {
+    const timeEntriesTracked = await this.get('timeEntriesTracked') || 0;
+    return this.set('timeEntriesTracked', timeEntriesTracked + 1);
   }
 
   resetAllSettings () {

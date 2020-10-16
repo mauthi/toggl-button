@@ -1,8 +1,9 @@
-# Toggl Button extension for Chrome and Firefox
+# Toggl Button [![Build Status](https://travis-ci.org/toggl/toggl-button.svg?branch=master)](https://travis-ci.org/toggl/toggl-button) [![Chrome Extension](https://img.shields.io/chrome-web-store/v/oejgccbfbmkkpaidnkphaiaecficdnfn.svg?label=Chrome%20Extension)](https://chrome.google.com/webstore/detail/toggl-button-productivity/oejgccbfbmkkpaidnkphaiaecficdnfn) [![Firefox Add-on](https://img.shields.io/amo/v/toggl-button-time-tracker.svg?label=Firefox%20Add-on)](https://addons.mozilla.org/en-US/firefox/addon/toggl-button-time-tracker/)
 
-[![Build Status](https://travis-ci.org/toggl/toggl-button.svg?branch=master)](https://travis-ci.org/toggl/toggl-button)
+> Track time effortlessly.
 
-Add Toggl one-click time tracking to popular web tools.
+Start and stop the timer from the web tools you use daily. Get the time-tracking
+out of the way and focus on real work.
 
 ## Compatible services
 - [AgenoCRM](https://agenocrm.com/)
@@ -18,6 +19,7 @@ Add Toggl one-click time tracking to popular web tools.
 - [Bitrix24](https://www.bitrix24.com/)
 - [Books](https://books.zoho.com/)
 - [Breeze](http://www.breeze.pm/)
+- [BrokerEngine](https://www.brokerengine.com.au/)
 - [Bugherd](https://www.bugherd.com/)
 - [Bugzilla](https://bugzilla.mozilla.org/)
 - [CapsuleCRM](http://www.capsulecrm.com/)
@@ -27,15 +29,17 @@ Add Toggl one-click time tracking to popular web tools.
 - [Codeable](https://www.codeable.io/)
 - [Codebase](https://www.codebasehq.com/)
 - [Countersoft](https://www.countersoft.com)
+- [Corgee](https://corgee.com)
 - [Desk](https://www.desk.com/)
 - [DevDocs](http://devdocs.io/)
 - [Doit.im](https://i.doit.im/)
 - [DokuWiki](https://www.dokuwiki.org/)
 - [Draftin](https://draftin.com/)
 - [Drupal](https://www.drupal.org)
+- [Dynamics 365 Customer Engagement (Unified Interface)](https://www.dynamics.com/)
 - [e(Project)](https://eproject.me/)
 - [Esa](https://esa.io)
-- [Eventum](https://launchpad.net/eventum)
+- [Eventum](https://github.com/eventum/eventum)
 - [Evernote](https://www.evernote.com/)
 - [Exana](https://exana.io/)
 - [Feedly](http://feedly.com/)
@@ -49,12 +53,14 @@ Add Toggl one-click time tracking to popular web tools.
 - [Gmail](https://mail.google.com)
 - [Gogs](http://gogs.io/)
 - [Google Calendar](https://www.google.com/calendar)
+- [Google Classroom](https://classroom.google.com/)
 - [Google Docs](https://docs.google.com/)
 - [Google Inbox](https://inbox.google.com)
 - [Google Keep](https://keep.google.com/)
 - [GQueues](https://www.gqueues.com/)
 - [Habitica](https://habitica.com)
 - [HEFLO](https://app.heflo.com/)
+- [Helprace](https://helprace.com/)
 - [Help Scout](http://www.helpscout.net/)
 - [Husky](https://www.huskymarketingplanner.com/)
 - [Intercom](https://www.intercom.com/)
@@ -62,14 +68,17 @@ Add Toggl one-click time tracking to popular web tools.
 - [Kanbanery](https://www.kanbanery.com/)
 - [Kanbanist](https://kanban.ist/)
 - [Kanboard](https://kanboard.org/)
+- [Kantree](https://kantree.io/)
 - [KhanAcademy](https://www.khanacademy.org/)
 - [LiquidPlanner](https://www.liquidplanner.com/)
+- [LiveAgent](https://www.liveagent.com/)
 - [ManageEngine](https://www.manageengine.com/)
 - [MantisHub](http://www.mantishub.com/)
 - [MeisterTask](https://meistertask.com/)
 - [Microsoft Planner](https://tasks.office.com/)
 - [miniCRM](https://minicrm.pl/)
 - [Newsletter2Go](http://www.newsletter2go.com/)
+- [Notion](https://www.notion.so/)
 - [Nozbe](https://nozbe.com/)
 - [ONLYOFFICE](https://www.onlyoffice.com/)
 - [Onshape](https://onshape.com/)
@@ -80,6 +89,7 @@ Add Toggl one-click time tracking to popular web tools.
 - [Phacility](http://phacility.com/)
 - [Pivotal](https://www.pivotaltracker.com/)
 - [Planbox](http://www.planbox.com/)
+- [Placker](http://placker.com/)
 - [Podio](https://podio.com/)
 - [ProcessWire](http://processwire.com/)
 - [Producteev](https://www.producteev.com/)
@@ -105,12 +115,12 @@ Add Toggl one-click time tracking to popular web tools.
 - [Taiga](https://taiga.io/)
 - [TargetProcess](https://www.targetprocess.com/)
 - [Teamleader](http://www.teamleader.eu/)
-- [TeamWeek](https://teamweek.com/)
 - [Teamwork](https://www.teamwork.com/)
 - [Teamwork Desk](https://www.teamwork.com/desk)
 - [TestRail](https://testrail.com)
 - [TickTick](https://ticktick.com/)
 - [Todoist](https://todoist.com/)
+- [Toggl Plan](https://toggl.com/plan)
 - [Toodledo](https://www.toodledo.com/)
 - [Trac](http://trac.edgewall.org/)
 - [Trello](https://trello.com/)
@@ -128,6 +138,7 @@ Add Toggl one-click time tracking to popular web tools.
 - [Wunderlist](https://www.wunderlist.com)
 - [Xero](https://www.xero.com/)
 - [YouTrack](http://www.jetbrains.com/youtrack/)
+- [Zammad](https://zammad.com/)
 - [Zendesk](https://www.zendesk.com/)
 - [Zube](https://zube.io/)
 - [VivifyScrum](https://www.vivifyscrum.com/)
@@ -154,6 +165,8 @@ Then depending on your browser, continue with the following steps.
 1.  Navigate to `chrome://extensions/` and enable "Developer Mode".
 2.  Choose "Load unpacked extension..."
 3.  Select the `dist/chrome/` directory
+
+**Note** that you will sometimes need to manually reload the unpacked extension, depending which files you're working on.
 
 #### On Firefox:
 

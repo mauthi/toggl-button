@@ -122,9 +122,6 @@ declare module Toggl {
   export interface ClientNameMap {
     [clientName: string]: Client;
   }
-  export interface TagMap {
-    [tagName: string]: Tag;
-  }
 
   export interface Task {
     id: number;
@@ -185,7 +182,6 @@ declare module Toggl {
     projectMap: ProjectMap;
     clientMap: ClientMap;
     clientNameMap: ClientNameMap;
-    tagMap: TagMap;
     projectTaskList: ProjectTaskList;
   }
 }
@@ -193,3 +189,31 @@ declare module Toggl {
 type TogglButton = {
   $user: Toggl.User | null;
 }
+
+type TogglDB = {
+  get<T>(key: string): Promise<T | null>;
+}
+
+interface LoginRequest {
+  type: 'login';
+  username: string;
+  password: string;
+}
+
+interface SyncRequest {
+  type: 'sync';
+  respond: true;
+}
+
+type ButtonRequest = LoginRequest | SyncRequest;
+
+interface SuccessResponse {
+  success: true;
+}
+
+interface FailureResponse {
+  success: false;
+  error: string;
+}
+
+type ButtonResponse = SuccessResponse | FailureResponse;

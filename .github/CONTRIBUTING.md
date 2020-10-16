@@ -50,6 +50,45 @@ Please consider the following with your pull request:
 * Make sure we're not leaking styles or breaking the layout of the UI.
 * The text used as timer description should be tailored to the majority of users. E.g. if ticket ID is an important piece of information, it should be included. If it's not important information (e.g. never actually shown in the UI, only in URLs) it should not be included.
 
+### DOM integration
+
+If you want to quickly integrate **Toggl Button** with your website.
+You can enable the *DOM Integration* in the **Custom Integrations** section for your domain
+
+![enable-dom-integration](https://user-images.githubusercontent.com/1716853/70514207-34cb4f00-1b59-11ea-894a-538f94f4d1f5.png)
+
+You will have to add one or more `div` in your DOM with the class name `toggl-root`, containing the metadata for the time-entry you want to start, Toggl Button will render a button link as a child of these `divs`.
+
+The schema for the time-entry metadata is
+
+```typescript
+interface TogglMetadata {
+  'class': 'toggl-root'
+  'data-description': string
+  'data-project-name': string
+  'data-project-id'?: number
+  'data-tags'?: string // comma separated tag names
+  'data-type'?: 'minimal'
+  'data-class-name'?: string
+}
+```
+
+The actual DOM node would resemble
+
+```html
+<div
+  class="toggl-root"
+  data-description="Description of the time-entry"
+  data-project-name="Name of a project that the entry should be assigned to"
+  data-project-id="Optionally the id of the project that the entry should be assigned to"
+  data-tags="list,of,tags"
+  data-type="minimal"
+  data-class-name="name-of-the-integration"
+></div>
+```
+
+See [toggl-button-dom-demo.now.sh](https://toggl-button-dom-demo.now.sh/) for reference.
+
 ## Making changes to the core extension code
 
 Please consider future maintainers and the "generic" nature of the extension in mind when writing new features. All changes should be tested across both Chrome and Firefox.

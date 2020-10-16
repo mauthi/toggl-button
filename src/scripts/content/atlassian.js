@@ -5,6 +5,10 @@ togglbutton.render(
   '#ghx-detail-view [spacing] h1:not(.toggl)',
   { observe: true },
   function () {
+    if (process.env.DEBUG) {
+      console.info('🏃 "Jira 2017 sidebar" rendering');
+    }
+
     const rootElem = $('#ghx-detail-view');
     const container = createTag('div', 'jira-ghx-toggl-button');
     const titleElem = $('[spacing] h1', rootElem);
@@ -27,101 +31,87 @@ togglbutton.render(
   }
 );
 
-// Jira 2018-X Sprint Modal
-// We select dialog content in order to wait for the SPA to render.
-// N.B. this can bring its own issues (see comment about infinite re-renders).
-// The h1 element gets replaced and no longer has .toggl class, so we have to be careful.
+// Jira Jan 2020 issue detail page. Uses functions for timer values due to SPA on issue-lists.
 togglbutton.render(
-  'div[role="dialog"] h1:not(.toggl)',
-  { observe: true },
-  function (needle) {
-    const root = needle.closest('div[role="dialog"]');
-    const id = $('div:last-child > a[spacing="none"][href^="/browse/"]:last-child', root);
-    const description = $('h1:first-child', root);
-    let project = $('[data-test-id="navigation-apps.project-switcher-v2"] button > div:nth-child(2) > div');
-    let link;
-
-    if (project === null) {
-      project = $('a[href^="/browse/"][target=_self]');
-    }
-
-    if (id !== null && description !== null) {
-      link = togglbutton.createTimerLink({
-        className: 'jira2018',
-        description: id.textContent + ' ' + description.textContent,
-        projectName: project && project.textContent
-      });
-
-      // Link is not placed in exactly the same element as a regular issue page,
-      // else we encounter infinite re-renders when the SPA updates the DOM.
-      id.parentNode.appendChild(link);
-    }
-  }
-);
-
-// Jira 2018-11 issue page. Uses functions for timer values due to SPA on issue-lists.
-togglbutton.render(
-  '#jira-frontend:not(.toggl)',
+  // The main "issue link" at the top of the issue.
+  '#jira-issue-header:not(.toggl)',
   { observe: true },
   function (elem) {
-    let titleElement;
-    let projectElement;
+    const container = elem.querySelector('[class^=BreadcrumbsContainer]');
+    const issueNumberElement = container.lastElementChild;
 
-    // The main "issue link" at the top of the issue.
-    // Extra target and role selectors are to avoid picking up wrong links on issue-list-pages.
-    const issueNumberElement = $('a[href^="/browse/"][target=_blank]:not([role=list-item])', elem);
-    const container = issueNumberElement.parentElement.parentElement.parentElement;
-
-    function getDescription () {
-      let description = '';
-
-      // Title/summary of the issue - we use the hidden "edit" button that's there for a11y
-      // in order to avoid picking up actual page title in the case of issue-list-pages.
-      titleElement = $('h1 ~ button[aria-label]', elem).previousSibling;
-
-      if (issueNumberElement) {
-        description += issueNumberElement.textContent.trim();
+    if (container.querySelector('.toggl-button')) {
+      // We're checking for existence of the button as re-rendering in Jira SPA is not reliable for our uses.
+      if (process.env.DEBUG) {
+        console.info('🚫 "Jira 2020-01 issue detail" quit rendering early');
       }
-
-      if (titleElement) {
-        if (description) description += ' ';
-        description += titleElement.textContent.trim();
-      }
-
-      return description;
+      return;
     }
 
-    function getProject () {
-      let project = '';
-
-      // Best effort to find the "Project switcher" found in the sidebar of most pages, and extract
-      // the project name from that. Historically project has not always been picked up reliably in Jira.
-      projectElement = $('[data-test-id="navigation-apps.project-switcher-v2"] button > div:nth-child(2) > div');
-      // Attempt to find the project name in page subtitle in case the sidebar is hidden
-      if (!projectElement) projectElement = $('a[href^="/browse/"][target=_self]');
-
-      if (projectElement) {
-        project = projectElement.textContent.trim();
-      }
-
-      return project;
+    if (process.env.DEBUG) {
+      console.info('🏃 "Jira 2020-01 issue detail" rendering');
     }
 
     const link = togglbutton.createTimerLink({
       className: 'jira2018',
-      description: getDescription,
-      projectName: getProject
+      description: getDescription(issueNumberElement),
+      projectName: getProject,
+      container: '#jira-issue-header'
     });
 
     container.appendChild(link);
   }
 );
 
+const getDescription = (issueNumberElement) => () => {
+  let description = '';
+  // Title/summary of the issue - we use the hidden "edit" button that's there for a11y
+  // in order to avoid picking up actual page title in the case of issue-list-pages.
+  const titleElement = document.querySelector('h1 ~ button[aria-label]');
+
+  if (issueNumberElement) {
+    // Inspect deeper to avoid other hidden elements which can contain text
+    // https://github.com/toggl/toggl-button/issues/1644
+    const issueLink = issueNumberElement.querySelector('a');
+    if (issueLink) {
+      description += issueLink.textContent.trim();
+    }
+  }
+
+  if (titleElement && titleElement.previousSibling) {
+    if (description) description += ' ';
+    description += titleElement.previousSibling.textContent.trim();
+  }
+
+  return description;
+};
+
+function getProject () {
+  let project = '';
+  let projectElement;
+
+  // Best effort to find the "Project switcher" found in the sidebar of most pages, and extract
+  // the project name from that. Historically project has not always been picked up reliably in Jira.
+  projectElement = $('[data-test-id="navigation-apps.project-switcher-v2"] button > div:nth-child(2) > div');
+  // Attempt to find the project name in page subtitle in case the sidebar is hidden
+  if (!projectElement) projectElement = $('a[href^="/browse/"][target=_self]');
+
+  if (projectElement) {
+    project = projectElement.textContent.trim();
+  }
+
+  return project;
+}
+
 // Jira 2017 issue page
 togglbutton.render(
   '.issue-header-content:not(.toggl)',
   { observe: true },
   function (elem) {
+    if (process.env.DEBUG) {
+      console.info('🏃 "Jira 2017 issue page" rendering');
+    }
+
     const numElem = $('#key-val', elem);
     const titleElem = $('#summary-val', elem) || '';
     let projectElem = $('.bgdPDV');
@@ -155,7 +145,7 @@ togglbutton.render(
     link.style.marginLeft = '8px';
 
     const issueLinkContainer =
-      $('.issue-link').parentElement || $('.aui-nav li').lastElementChild;
+      ($('.issue-link') || {}).parentElement || ($('.aui-nav li') || {}).lastElementChild;
     issueLinkContainer && issueLinkContainer.appendChild(link);
   }
 );

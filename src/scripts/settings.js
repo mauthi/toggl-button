@@ -1,8 +1,8 @@
+import browser from 'webextension-polyfill';
+
 import TogglOrigins from './origins';
 import bugsnagClient from './lib/bugsnag';
-import { getUrlParam } from './lib/utils';
-
-const browser = require('webextension-polyfill');
+import { getStoreLink, getUrlParam, isActiveUser } from './lib/utils';
 
 let TogglButton = browser.extension.getBackgroundPage().TogglButton;
 const ga = browser.extension.getBackgroundPage().ga;
@@ -25,11 +25,22 @@ if (FF) {
 }
 
 document.querySelector('#version').textContent = process.env.VERSION;
+document.querySelector('#review-prompt a').href = getStoreLink(FF);
+document.querySelector('#review-prompt a').addEventListener('click', dismissReviewPrompt);
+document.querySelector('#close-review-prompt').addEventListener('click', dismissReviewPrompt);
+[...document.querySelectorAll('.nav-link')].forEach(link => {
+  link.addEventListener('click', changeActiveTab);
+});
+
+const isNotTogglApp = (url) => {
+  return (url || '').match(/toggl\./) === null;
+};
 
 const Settings = {
   $startAutomatically: null,
   $stopAutomatically: null,
   $showRightClickButton: null,
+  $darkMode: null,
   $postPopup: null,
   $nanny: null,
   $pomodoroMode: null,
@@ -44,8 +55,14 @@ const Settings = {
   $stopAtDayEnd: null,
   $defaultProject: null,
   $defaultProjectContainer: null,
+  $pomodoroFocusMode: null,
   $pomodoroVolume: null,
   $pomodoroVolumeLabel: null,
+
+  $pomodoroTickerSound: null,
+  $pomodoroTickerVolume: null,
+  $pomodoroTickerVolumeLabel: null,
+
   $sendUsageStatistics: null,
   $sendErrorReports: null,
   $enableAutoTagging: null,
@@ -65,6 +82,7 @@ const Settings = {
       Settings.setFromTo();
       const nannyInterval = await db.get('nannyInterval');
       const showRightClickButton = await db.get('showRightClickButton');
+      const darkMode = await db.get('darkMode');
       const enableAutoTagging = await db.get('enableAutoTagging');
       const startAutomatically = await db.get('startAutomatically');
       const stopAutomatically = await db.get('stopAutomatically');
@@ -73,6 +91,7 @@ const Settings = {
       const nannyCheckEnabled = await db.get('nannyCheckEnabled');
       const pomodoroModeEnabled = await db.get('pomodoroModeEnabled');
       const pomodoroInterval = await db.get('pomodoroInterval');
+      const pomodoroFocusMode = await db.get('pomodoroFocusMode');
       const pomodoroSoundEnabled = await db.get('pomodoroSoundEnabled');
       const pomodoroStopTimeTrackingWhenTimerEnds = await db.get('pomodoroStopTimeTrackingWhenTimerEnds');
       const sendUsageStatistics = await db.get('sendUsageStatistics');
@@ -80,15 +99,43 @@ const Settings = {
       const stopAtDayEnd = await db.get('stopAtDayEnd');
       const dayEndTime = await db.get('dayEndTime');
 
-      Settings.$loginInfo.textContent = TogglButton.$user.email;
+      if (darkMode) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('darkMode', true);
+      }
+
+      Settings.$loginInfo.textContent = TogglButton.$user && TogglButton.$user.email || '';
+
+      document.querySelector('.expand').addEventListener('click', e => {
+        const expand = e.target.closest('.expand');
+        const content = expand.querySelector('.content');
+        const hidden = getComputedStyle(content).display === 'none';
+        content.style.display = hidden ? 'inline-block' : 'none';
+        expand.querySelector('.title').style.display = hidden ? 'none' : 'block';
+      });
 
       document.querySelector('#nag-nanny-interval').value = nannyInterval / 60000;
       Settings.$pomodoroVolume.value = volume;
       Settings.$pomodoroVolumeLabel.textContent = volume + '%';
 
+      const pomodoroTickerEnabled = await db.get('pomodoroTickerEnabled');
+      const pomodoroTickerVolume = await db.get('pomodoroTickerVolume');
+      const tickerVolume = parseInt(pomodoroTickerVolume * 100, 10);
+      Settings.$pomodoroTickerVolume.value = tickerVolume;
+      Settings.$pomodoroTickerVolumeLabel.textContent = tickerVolume + '%';
+      Settings.toggleState(
+        Settings.$pomodoroTickerSound,
+        pomodoroTickerEnabled
+      );
+      document.querySelector('.field.pomodoro-ticker').classList.toggle('field--showDetails', pomodoroTickerEnabled);
+
       Settings.toggleState(
         Settings.$showRightClickButton,
         showRightClickButton
+      );
+      Settings.toggleState(
+        Settings.$darkMode,
+        darkMode
       );
       Settings.toggleState(
         Settings.$enableAutoTagging,
@@ -116,9 +163,14 @@ const Settings = {
       );
       document.querySelector('.field.pomodoro-mode').classList.toggle('field--showDetails', pomodoroModeEnabled);
       Settings.toggleState(
+        Settings.$pomodoroFocusMode,
+        pomodoroFocusMode
+      );
+      Settings.toggleState(
         Settings.$pomodoroSound,
         pomodoroSoundEnabled
       );
+      document.querySelector('.field.pomodoro-sound').classList.toggle('field--showDetails', pomodoroSoundEnabled);
       Settings.toggleState(
         Settings.$pomodoroStopTimeTracking,
         pomodoroStopTimeTrackingWhenTimerEnds
@@ -159,12 +211,12 @@ const Settings = {
     }
   },
   fillDefaultProject: async function () {
-    const projects = db.getLocalCollection('projects');
+    const projects = db.getLocal('projects') || {};
     const hasProjects = Object.keys(projects).length > 0;
 
     if (hasProjects && !!TogglButton.$user) {
       const defaultProject = await db.getDefaultProject();
-      const clients = db.getLocalCollection('clients');
+      const clients = db.getLocal('clients') || {};
 
       const html = document.createElement('select');
       html.id = 'default-project';
@@ -227,7 +279,7 @@ const Settings = {
 
     for (i = 0; i < items.length; i++) {
       current = items[i].getAttribute('data-host');
-      if (current.indexOf('toggl') === -1) {
+      if (isNotTogglApp(current)) {
         if (current.indexOf(',') !== -1) {
           urls = urls.concat(current.split(','));
         } else {
@@ -235,6 +287,7 @@ const Settings = {
         }
       }
     }
+
     return { origins: urls };
   },
   setFromTo: async function () {
@@ -290,19 +343,13 @@ const Settings = {
         if (customs.hasOwnProperty(k) && !!TogglOrigins[customs[k]]) {
           li = document.createElement('li');
 
+          dom = document.createElement('div');
+          dom.innerHTML = `<strong>${k}</strong> - ${TogglOrigins[customs[k]].name}`;
+          li.appendChild(dom);
+
           dom = document.createElement('a');
           dom.className = 'remove-custom';
           dom.textContent = 'delete';
-          li.appendChild(dom);
-
-          dom = document.createElement('strong');
-          dom.textContent = k;
-          li.appendChild(dom);
-
-          li.appendChild(document.createTextNode(' - '));
-
-          dom = document.createElement('i');
-          dom.textContent = TogglOrigins[customs[k]].name;
           li.appendChild(dom);
 
           customHtml.appendChild(li);
@@ -323,9 +370,7 @@ const Settings = {
               .replace('*://*.', '')
               .replace('*://', '')
               .replace('/*', '');
-            if (url.split('.').length > 2) {
-              name = url.substr(url.indexOf('.') + 1);
-            }
+
             Settings.origins[name] = {
               id: i,
               origin: origins[i],
@@ -349,10 +394,24 @@ const Settings = {
               checked = 'checked';
 
               if (!Settings.origins[key]) {
+                tmpkey = key;
+
+                // Special case for toggl-button-demo
+                if (key === 'dom-integration') {
+                  tmpkey = TogglOrigins[key].url
+                    .replace('*://*.', '')
+                    .replace('*://', '')
+                    .replace('/*', '');
+                }
+
                 // Handle cases where subdomain is used (like web.any.do, we remove web from the beginning)
-                tmpkey = key.split('.');
-                tmpkey.shift();
-                tmpkey = tmpkey.join('.');
+                const isWildcardDomainRegex = new RegExp(/\/\/\*\./);
+                if (TogglOrigins[key].url.match(isWildcardDomainRegex)) {
+                  tmpkey = key.split('.');
+                  tmpkey.shift();
+                  tmpkey = tmpkey.join('.');
+                }
+
                 if (!Settings.origins[tmpkey]) {
                   disabled = 'disabled';
                   checked = '';
@@ -371,7 +430,7 @@ const Settings = {
               }
 
               // Don't show toggl.com as it's not optional
-              if (key.indexOf('toggl') === -1 && !!TogglOrigins[key].url) {
+              if (isNotTogglApp(key) && !!TogglOrigins[key].url) {
                 li = document.createElement('li');
                 li.id = key;
                 li.className = disabled;
@@ -384,7 +443,7 @@ const Settings = {
                   input.setAttribute('checked', 'checked');
                 }
 
-                dom = document.createElement('div');
+                dom = document.createElement('label');
                 dom.textContent = `${TogglOrigins[key].name} - ${key}`;
 
                 li.appendChild(input);
@@ -428,7 +487,7 @@ const Settings = {
     }
 
     Settings.$newPermission.value = text;
-    const domain = '*://' + Settings.$newPermission.value + '/';
+    const domain = '*://*.' + Settings.$newPermission.value + '/';
     const permission = { origins: [domain] };
 
     browser.permissions.request(permission)
@@ -536,21 +595,26 @@ const Settings = {
       const origins = [];
       let i;
       let key;
-      const customOrigins = await db.getAllOrigins();
+      const allOrigins = await db.getAllOrigins();
+      const customOrigins = {};
       let skip = false;
 
       try {
+        for (key in allOrigins) {
+          if (typeof allOrigins[key] === 'string') {
+            customOrigins[key] = allOrigins[key];
+          }
+        }
+
         for (i = 0; i < result.origins.length; i++) {
           for (key in customOrigins) {
-            if (customOrigins.hasOwnProperty(key) && !skip) {
-              if (result.origins[i].indexOf(key) !== -1) {
-                skip = true;
-              }
+            if (result.origins[i].indexOf(key) !== -1) {
+              skip = true;
             }
           }
 
           if (
-            result.origins[i].indexOf('toggl') === -1 &&
+            isNotTogglApp(result.origins[i]) &&
             result.origins[i] !== '*://*/*' &&
             !skip
           ) {
@@ -617,10 +681,12 @@ document.addEventListener('DOMContentLoaded', async function (e) {
     Settings.$showRightClickButton = document.querySelector(
       '#show_right_click_button'
     );
+    Settings.$darkMode = document.querySelector('#dark_mode');
     Settings.$postPopup = document.querySelector('#show_post_start_popup');
     Settings.$nanny = document.querySelector('#nag-nanny');
     Settings.$idleDetection = document.querySelector('#idle-detection');
     Settings.$pomodoroMode = document.querySelector('#pomodoro-mode');
+    Settings.$pomodoroFocusMode = document.querySelector('#pomodoro-focus-mode');
     Settings.$pomodoroSound = document.querySelector('#enable-sound-signal');
     Settings.$pomodoroStopTimeTracking = document.querySelector(
       '#pomodoro-stop-time'
@@ -639,22 +705,10 @@ document.addEventListener('DOMContentLoaded', async function (e) {
     Settings.$enableAutoTagging = document.querySelector('#enable-auto-tagging');
     Settings.$resetAllSettings = document.querySelector('#reset-all-settings');
 
-    // Show permissions page with notice
-    const dontShowPermissions = await db.get('dont-show-permissions');
-    if (
-      !dontShowPermissions
-    ) {
-      const showPermissionsInfo = await db.get('show-permissions-info');
-      document.querySelector('.guide-container').style.display = 'flex';
-      document.querySelector(
-        ".guide > div[data-id='" + (showPermissionsInfo || 0) + "']"
-      ).style.display =
-        'block';
-      document
-        .querySelector('.guide button')
-        .setAttribute('data-id', showPermissionsInfo || 0);
-      db.set('show-permissions-info', 0);
-    }
+    // Pomordoro focus interval sound elements
+    Settings.$pomodoroTickerSound = document.querySelector('#enable-ticker-sound');
+    Settings.$pomodoroTickerVolume = document.querySelector('#ticker-sound-volume');
+    Settings.$pomodoroTickerVolumeLabel = document.querySelector('#ticker-volume-label');
 
     // Change active tab if present in search param
     const activeTabParam = getUrlParam(document.location, 'tab');
@@ -668,15 +722,16 @@ document.addEventListener('DOMContentLoaded', async function (e) {
     const updateFilteredList = function (val) {
       if (val.length > 0) {
         Settings.$permissionsList.classList.add('filtered');
-        Settings.$permissionFilterClear.style.display = 'block';
+        Settings.$permissionFilterClear.style.opacity = '1';
       } else {
         Settings.$permissionsList.classList.remove('filtered');
-        Settings.$permissionFilterClear.style.display = 'none';
+        Settings.$permissionFilterClear.style.opacity = '0';
       }
 
+      val = val.toLowerCase();
       const permissionItems = document.querySelectorAll('#permissions-list li');
       permissionItems.forEach((item) => {
-        if (item.textContent.toLowerCase().indexOf(val) !== -1) {
+        if (item.textContent.toLowerCase().includes(val)) {
           item.classList.add('filter');
         } else if (item.classList) {
           item.classList.remove('filter');
@@ -705,6 +760,16 @@ document.addEventListener('DOMContentLoaded', async function (e) {
         'toggle-right-click-button'
       );
       TogglButton.toggleRightClickButton(!showRightClickButton);
+    });
+    Settings.$darkMode.addEventListener('click', async function (e) {
+      const darkMode = await db.get('darkMode');
+      const next = !darkMode;
+      Settings.toggleSetting(e.target, next, 'toggle-dark-mode');
+      document.documentElement.classList.remove('dark');
+      if (next) {
+        document.documentElement.classList.add('dark');
+      }
+      localStorage.setItem('darkMode', next);
     });
     Settings.$enableAutoTagging.addEventListener('click', async function (e) {
       const enableAutoTagging = await db.get('enableAutoTagging');
@@ -736,9 +801,14 @@ document.addEventListener('DOMContentLoaded', async function (e) {
       Settings.toggleSetting(e.target, !pomodoroModeEnabled, 'toggle-pomodoro');
       document.querySelector('.field.pomodoro-mode').classList.toggle('field--showDetails', !pomodoroModeEnabled);
     });
+    Settings.$pomodoroFocusMode.addEventListener('click', async function (e) {
+      const pomodoroFocusMode = await db.get('pomodoroFocusMode');
+      Settings.toggleSetting(e.target, !pomodoroFocusMode, 'toggle-pomodoro-focus-mode');
+    });
     Settings.$pomodoroSound.addEventListener('click', async function (e) {
       const pomodoroSoundEnabled = await db.get('pomodoroSoundEnabled');
       Settings.toggleSetting(e.target, !pomodoroSoundEnabled, 'toggle-pomodoro-sound');
+      document.querySelector('.field.pomodoro-sound').classList.toggle('field--showDetails', !pomodoroSoundEnabled);
     });
     Settings.$pomodoroStopTimeTracking.addEventListener('click', async function (e) {
       const pomodoroStopTimeTrackingWhenTimerEnds = await db.get('pomodoroStopTimeTrackingWhenTimerEnds');
@@ -758,12 +828,6 @@ document.addEventListener('DOMContentLoaded', async function (e) {
         rememberPer = false;
       }
       Settings.saveSetting(rememberPer, 'change-remember-project-per');
-    });
-
-    document.querySelector('.tab-links').addEventListener('click', e => {
-      const tabLink = e.target.closest('.tab-link');
-      const selectedTab = tabLink.dataset.tab;
-      changeActiveTab(selectedTab);
     });
 
     Settings.$pomodoroVolume.addEventListener('input', function (e) {
@@ -786,6 +850,46 @@ document.addEventListener('DOMContentLoaded', async function (e) {
         sound.src = '../' + soundFile;
         sound.volume = Settings.$pomodoroVolume.value / 100;
         sound.play();
+      });
+
+    // Pomodoro interval listeners
+    Settings.$pomodoroTickerSound.addEventListener('click', async function (e) {
+      const pomodoroTickerEnabled = await db.get('pomodoroTickerEnabled');
+      await db.set('pomodoroTickerEnabled', !pomodoroTickerEnabled);
+      document.querySelector('.field.pomodoro-ticker').classList.toggle('field--showDetails', !pomodoroTickerEnabled);
+    });
+
+    Settings.$pomodoroTickerVolume.addEventListener('input', function (e) {
+      Settings.$pomodoroTickerVolumeLabel.textContent = e.target.value + '%';
+    });
+
+    Settings.$pomodoroTickerVolume.addEventListener('change', async function (e) {
+      await db.set(
+        'pomodoroTickerVolume',
+        e.target.value / 100
+      );
+      Settings.$pomodoroTickerVolumeLabel.textContent = e.target.value + '%';
+    });
+
+    const tickerSoundTest = document.querySelector('#ticker-sound-test');
+    const tickerSound = new Audio();
+    let isPlaying = false;
+
+    tickerSoundTest
+      .addEventListener('click', async function () {
+        if (isPlaying) {
+          tickerSound.pause();
+          isPlaying = false;
+          tickerSoundTest.innerHTML = 'Test';
+          return;
+        }
+        isPlaying = true;
+        tickerSoundTest.innerHTML = 'Stop';
+        const soundFile = await db.get('pomodoroTickerFile');
+        tickerSound.src = '../' + soundFile;
+        tickerSound.volume = Settings.$pomodoroTickerVolume.value / 100;
+        tickerSound.loop = true;
+        tickerSound.play();
       });
 
     const saveNagNanny = (e) => {
@@ -859,20 +963,6 @@ document.addEventListener('DOMContentLoaded', async function (e) {
       false
     );
 
-    document
-      .querySelector('.guide button')
-      .addEventListener('click', function (e) {
-        const disableChecked = document.querySelector(
-          '#disable-permission-notice'
-        ).checked;
-        db.set('dont-show-permissions', disableChecked);
-        document.querySelector('.guide-container').style.display = 'none';
-        document.querySelector(
-          ".guide > div[data-id='" + e.target.getAttribute('data-id') + "']"
-        ).style.display =
-          'none';
-      });
-
     Settings.$resetAllSettings.addEventListener('click', function (e) {
       bugsnagClient.leaveBreadcrumb('Triggered reset all settings');
       const isConfirmed = confirm('Are you sure you want to reset your settings?');
@@ -921,6 +1011,11 @@ document.addEventListener('DOMContentLoaded', async function (e) {
     });
 
     Settings.loadSitesIntoList();
+
+    const shouldShowReviewPrompt = await isActiveUser(db);
+    if (shouldShowReviewPrompt) {
+      showReviewPrompt();
+    }
   } catch (err) {
     browser.runtime.sendMessage({
       type: 'error',
@@ -930,15 +1025,41 @@ document.addEventListener('DOMContentLoaded', async function (e) {
   }
 });
 
-function changeActiveTab (name) {
+function changeActiveTab (tab) {
+  const elem = tab.target ? tab.target.closest('[data-tab]') : undefined;
+
+  const name = elem ? elem.dataset.tab : tab;
+
   document.querySelectorAll('.active').forEach(e => {
     e.classList.remove('active');
   });
 
+  let title = '';
+
   const tabEls = document.querySelectorAll(`[data-tab="${name}"]`);
-  tabEls.forEach(e => e.classList.add('active'));
+  tabEls.forEach(e => {
+    e.classList.add('active');
+    if (!title) {
+      title = e.textContent;
+    }
+  });
+
+  document.querySelector('#title').textContent = title;
 
   if (tabEls.length === 0) {
     console.error(new Error(`changeActiveTab: Invalid tab name: ${name}`));
   }
+}
+
+async function showReviewPrompt () {
+  const dismissedReviewPrompt = await db.get('dismissedReviewPrompt');
+  if (dismissedReviewPrompt) {
+    return;
+  }
+  document.body.dataset.showReviewBanner = true;
+}
+
+function dismissReviewPrompt () {
+  document.body.dataset.showReviewBanner = false;
+  db.set('dismissedReviewPrompt', true);
 }
