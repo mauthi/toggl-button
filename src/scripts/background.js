@@ -114,6 +114,7 @@ window.TogglButton = {
 
   fetchUser: function (token) {
     bugsnagClient.leaveBreadcrumb('Fetching user with related data');
+    console.log('fetching user');
     return new Promise((resolve, reject) => {
       TogglButton.ajax('/me?with_related_data=true', {
         token: token,
@@ -128,6 +129,7 @@ window.TogglButton = {
           let entry = null;
 
           try {
+            console.log('xxx');
             if (xhr.status === 200) {
               browser.tabs.query({ active: true, currentWindow: true })
                 .then(filterTabs(function (tabs) {
@@ -174,6 +176,7 @@ window.TogglButton = {
               TogglButton.updateTriggers(entry);
               localStorage.setItem('projects', JSON.stringify(projectMap));
               localStorage.setItem('clients', JSON.stringify(clientMap));
+              console.log('set user');
               TogglButton.$user = resp.data;
               TogglButton.$user.time_entries = TogglButton.$user.time_entries.map((te) => {
                 // Ensure empty values from v8 become null.
@@ -1786,6 +1789,7 @@ window.TogglButton = {
       let errorSource;
       try {
         // db messages
+        console.log('hier333ddd');
         if (request.type === 'toggle-popup') {
           db.set('showPostPopup', request.state);
         } else if (request.type === 'toggle-nanny') {
@@ -2184,6 +2188,7 @@ db.get('showRightClickButton')
   .then((setting) => {
     TogglButton.toggleRightClickButton(setting);
   });
+console.log('xxxx');
 TogglButton.fetchUser();
 TogglButton.setNannyTimer();
 TogglButton.startCheckingUserState();

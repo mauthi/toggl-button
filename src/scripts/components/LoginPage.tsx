@@ -5,6 +5,7 @@ import browser from 'webextension-polyfill';
 
 import Logo from '../icons/Logo';
 import Spinner from './Spinner';
+import bugsnagClient from '../lib/bugsnag';
 
 export interface LoginProps {
   isLoggedIn: boolean;
@@ -47,7 +48,11 @@ export default function LoginPage ({ source, isLoggedIn, isPopup }: LoginProps) 
   );
 
   if (source === 'web-login') {
+    console.log("hier2");
+    bugsnagClient.notify(new Error('Test error'));
+
     if (!loggedIn && !loading && !error) {
+      console.log("hier");
       login(setState);
     }
 

@@ -16,7 +16,7 @@ const config = f => (
 ) => {
   const env = {
     development: Boolean(development),
-    bugsnagApiKey: process.env.BUTTON_BUGSNAG_API_KEY || '7419717b29de539ab0fbe35dcd7ca19d',
+    bugsnagApiKey: process.env.BUTTON_BUGSNAG_API_KEY || '6460a967a3acfa20cc5303bf8fff5773',
     production: Boolean(production),
     release: Boolean(release),
     version: pkg.version
@@ -71,7 +71,7 @@ module.exports = config(({ development, bugsnagApiKey, production, release, vers
       TOGGL_WEB_HOST: 'https://toggl.com',
       BUGSNAG_API_KEY: bugsnagApiKey,
       DEBUG: development,
-      GA_TRACKING_ID: 'UA-3215787-22',
+      GA_TRACKING_ID: '',
       VERSION: version
     }),
     new CleanPlugin([path.resolve(__dirname, 'dist')]),

@@ -8,6 +8,7 @@ import LoginPage, { LoginProps } from '../components/LoginPage';
 const TogglButton: TogglButton = browser.extension.getBackgroundPage().TogglButton;
 
 export default function init (root: HTMLElement, isPopup = false) {
+  console.log(TogglButton);
   const source = (getUrlParam(location.href, 'source') || 'install') as LoginProps['source'];
   const isLoggedIn = !!TogglButton.$user;
   render(
