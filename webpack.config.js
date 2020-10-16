@@ -1,10 +1,11 @@
-const path = require('path');
-const fs = require('fs');
-const CleanPlugin = require('clean-webpack-plugin');
 const CopyPlugin = require('copy-webpack-plugin');
 const FileManagerPlugin = require('filemanager-webpack-plugin');
+const fs = require('fs');
+const path = require('path');
 const { BugsnagSourceMapUploaderPlugin } = require('webpack-bugsnag-plugins');
+const { CleanWebpackPlugin: CleanPlugin } = require('clean-webpack-plugin');
 const { EnvironmentPlugin } = require('webpack');
+
 const log = require('webpack-log')({ name: 'wds' });
 const pkg = require('./package.json');
 
@@ -38,6 +39,7 @@ module.exports = config(({ development, bugsnagApiKey, production, release, vers
     ...entry('login', 'ts'),
     ...entry('popup'),
     ...entry('settings'),
+    ...entry('settings-theme'),
     ...entryContentScripts()
   },
   output: {
@@ -46,6 +48,9 @@ module.exports = config(({ development, bugsnagApiKey, production, release, vers
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.jsx']
+  },
+  node: {
+    global: false
   },
   module: {
     rules: [
@@ -67,14 +72,14 @@ module.exports = config(({ development, bugsnagApiKey, production, release, vers
   },
   plugins: [
     new EnvironmentPlugin({
-      API_URL: 'https://toggl.com/api',
-      TOGGL_WEB_HOST: 'https://toggl.com',
+      API_URL: 'https://track.toggl.com/api',
+      TOGGL_WEB_HOST: 'https://toggl.com/track',
       BUGSNAG_API_KEY: bugsnagApiKey,
       DEBUG: development,
       GA_TRACKING_ID: '',
       VERSION: version
     }),
-    new CleanPlugin([path.resolve(__dirname, 'dist')]),
+    new CleanPlugin(),
     new CopyPlugin([
       ...copy({
         from: 'html/',
@@ -102,7 +107,7 @@ module.exports = config(({ development, bugsnagApiKey, production, release, vers
         to: 'firefox/manifest.json',
         transform: transformManifest('firefox')
       }
-    ]),
+    ], { copyUnmodified: true }),
     production && release &&
       new BugsnagSourceMapUploaderPlugin({
         apiKey: bugsnagApiKey,

@@ -1,27 +1,51 @@
 'use strict';
 
+// Selectors here are madness, it works for as of Dec 4th 2019
+// Button renders in popup/dialog view
 togglbutton.render(
-  '.notion-overlay-container .notion-peek-renderer .notion-page-controls + .notion-selectable > [contenteditable="true"][placeholder="Untitled"]:not(.toggl)',
+  '.notion-peek-renderer:not(.toggl)',
   { observe: true },
   function (elem) {
-    const container = createTag('div', 'button-link notion-tb-wrapper');
-    const descriptionElem = elem;
-    const projectElem = $(
-      '.notion-sidebar-container > * > * > * > * > * > * > * > * + * > * > *'
-    );
-    const togglButtonLoc = $(
-      '.notion-overlay-container .notion-peek-renderer [rel="noopener noreferrer nofollow"] + [style*="flex-grow: 1"] + *'
-    );
+    function getDescription () {
+      const descriptionElem = elem.querySelector('.notion-scroller .notion-selectable div[contenteditable="true"]');
+      return descriptionElem ? descriptionElem.textContent.trim() : '';
+    }
 
     const link = togglbutton.createTimerLink({
       className: 'notion',
-      description: descriptionElem.textContent.trim(),
-      projectName: projectElem && projectElem.textContent,
-      calculateTotal: true,
-      buttonType: 'minimal'
+      description: getDescription
     });
 
-    container.appendChild(link);
-    togglButtonLoc.parentNode.insertBefore(container, togglButtonLoc);
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('toggl-button-notion-wrapper');
+    wrapper.appendChild(link);
+
+    const root = elem.querySelector('div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3)');
+    if (root) {
+      root.prepend(wrapper);
+    }
+  }
+);
+
+// Button renders left of page title - hidden on popups with css
+togglbutton.render(
+  '.notion-page-controls + div:not(.toggl)',
+  { observe: true },
+  function (elem) {
+    elem.style.position = 'relative';
+
+    function getDescription () {
+      const descriptionElem = elem ? elem.querySelector('div[data-root="true"]') : '';
+
+      return descriptionElem ? descriptionElem.textContent.trim() : '';
+    }
+
+    const link = togglbutton.createTimerLink({
+      className: 'notion',
+      buttonType: 'minimal',
+      description: getDescription
+    });
+
+    elem.prepend(link);
   }
 );

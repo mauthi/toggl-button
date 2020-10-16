@@ -1,63 +1,89 @@
 'use strict';
 /* global togglbutton, $ */
 
-const todoistEditor = document.getElementById('editor');
+const todoistEditor = document.getElementById('content');
 
+// task view
+// First example of data-attribute integration ✨
+togglbutton.render('[data-item-detail-root] [data-item-actions-root]:not(.toggl)', { observe: true }, elem => {
+  const description = () => elem.dataset.itemContent || '';
+  const project = () => elem.dataset.itemProjectName || '';
+  const tags = () => Array.from(elem.querySelectorAll('[data-item-label-name]'))
+    .map(el => el.dataset.itemLabelName)
+    .filter(Boolean);
+
+  const link = togglbutton.createTimerLink({
+    className: 'todoist-detail',
+    description: description,
+    projectName: project,
+    tags: tags,
+    buttonType: 'minimal'
+  });
+
+  const wrapper = document.createElement('div');
+  wrapper.classList.add('item_action');
+  wrapper.style.display = 'flex';
+  wrapper.style.alignItems = 'center';
+  wrapper.style.justifyContent = 'center';
+  wrapper.appendChild(link);
+
+  elem.lastChild.before(wrapper);
+});
+
+// task view - subtasks
 togglbutton.render(
-  '.task_item .content:not(.toggl)',
-  { observe: true, observeTarget: todoistEditor, debounceInterval: 100 },
+  '.task_list_item .task_list_item__actions:not(.toggl)',
+  { observe: true, observeTarget: todoistEditor, debounceInterval: 300 },
   elem => {
-    const container = $('.text', elem);
+    const isButtonAdded = elem.querySelector('.toggl-button') !== null;
+
+    if (isButtonAdded) {
+      return;
+    }
+
+    const rootEl = elem.closest('.task_list_item');
+    const content = rootEl.querySelector('.task_list_item__content');
 
     const descriptionSelector = () => {
-      const clone = container.cloneNode(true);
-      let i = 0;
-      let child = null;
-
-      // Clean up UI elements that appear in the same node as the description
-      while (clone.children.length > i) {
-        child = clone.children[i];
-        if (
-          child.tagName === 'B' ||
-          child.tagName === 'I' ||
-          child.tagName === 'STRONG' ||
-          child.tagName === 'EM'
-        ) {
-          i++;
-        } else if (child.tagName === 'A') {
-          if (
-            child.classList.contains('ex_link') ||
-            child.getAttribute('href').indexOf('mailto:') === 0
-          ) {
-            i++;
-          } else {
-            child.remove();
-          }
-        } else {
-          child.remove();
-        }
-      }
-
-      return clone.textContent.trim();
+      const text = content.querySelector('.task_content');
+      return text ? text.textContent.trim() : '';
     };
 
-    const tagsSelector = () => {
-      const tags = elem.querySelectorAll('.labels_holder a:not(.label_sep)');
+    let project = '';
+    const projectId = rootEl.getAttribute('data-item-id');
 
-      return [...tags].map(tag => {
-        return tag.textContent;
-      });
+    if (document.getElementById(`item_${projectId}`)) {
+      // (legacy?) project ID element
+      const projectContent = document.getElementById(`item_${projectId}`).querySelector('.content');
+      project = getProjectNames(projectContent);
+    } else if (rootEl.querySelector('.task_list_item__project')) {
+      // Project name shown alongside the task in UI
+      project = rootEl.querySelector('.task_list_item__project').textContent.trim();
+    } else {
+      // Try to look for a parent item with a known project
+      project = getParentIfProject(elem.closest('.item_detail'));
+    }
+
+    const tagsSelector = () => {
+      const tags = content.querySelectorAll('.task_list_item__info_tags__label');
+
+      return [...tags].map(tag => tag.textContent);
     };
 
     const link = togglbutton.createTimerLink({
-      className: 'todoist',
+      className: 'todoist-detail-subtask',
       description: descriptionSelector,
-      projectName: getProjectNames(elem),
+      projectName: project,
       buttonType: 'minimal',
       tags: tagsSelector
     });
 
-    container.insertBefore(link, container.lastChild);
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.marginTop = '2px';
+    wrapper.appendChild(link);
+
+    elem.lastChild.before(wrapper);
   }
 );
 
@@ -79,6 +105,8 @@ function getProjectNameFromLabel (elem) {
   const projectLabelEle = $('.project_item__name', elem.parentNode.parentNode);
   if (projectLabelEle) {
     projectLabel = projectLabelEle.textContent.trim();
+  } else if ($('.task_list_item__project', elem.parentNode.parentNode)) {
+    projectLabel = $('.task_list_item__project', elem).textContent.trim();
   }
   return projectLabel;
 }
@@ -165,4 +193,17 @@ function getProjectNames (elem) {
     }
     return projectNames;
   };
+}
+
+function getParentIfProject (elem) {
+  if (!elem) return '';
+
+  const parent = elem.querySelector('.item_detail_parent_info');
+  let project = '';
+
+  if (parent.querySelector('circle, .item_detail_parent_icon__inbox_icon')) {
+    project = parent.querySelector('.item_detail_parent_name').textContent;
+  }
+
+  return project;
 }

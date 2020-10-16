@@ -12,7 +12,7 @@ export default {
     url: '*://*.any.do/*',
     name: 'Anydo'
   },
-  'asana.com': {
+  'app.asana.com': {
     url: '*://app.asana.com/*',
     name: 'Asana'
   },
@@ -22,12 +22,14 @@ export default {
   },
   'atlassian.com': {
     url: '*://*.atlassian.com/*',
-    name: 'Atlassian'
+    name: 'Atlassian / Jira',
+    file: 'atlassian.js'
   },
   'atlassian.net': {
     url: '*://*.atlassian.net/*',
-    name: 'Atlassian',
-    clone: 'true'
+    name: 'Atlassian / Jira',
+    clone: 'true',
+    file: 'atlassian.js'
   },
   'attask-ondemand.com': {
     url: '*://*.attask-ondemand.com/*',
@@ -60,9 +62,13 @@ export default {
     url: '*://*.bitrix24.com/*',
     name: 'Bitrix24'
   },
-  'breeze.pm': {
+  'app.breeze.pm': {
     url: '*://app.breeze.pm/*',
     name: 'Breeze'
+  },
+  'app.brokerengine.com.au': {
+    url: '*://app.brokerengine.com.au/*',
+    name: 'BrokerEngine'
   },
   'www.bugherd.com': {
     url: '*://www.bugherd.com/*',
@@ -84,17 +90,21 @@ export default {
     url: '*://*.cloudes.me/*',
     name: 'Cloudes.me'
   },
-  'clubhouse.io': {
+  'app.clubhouse.io': {
     url: '*://app.clubhouse.io/*',
     name: 'Clubhouse'
   },
-  'codeable.io': {
+  'app.codeable.io': {
     url: '*://app.codeable.io/*',
     name: 'Codeable'
   },
   'codebasehq.com': {
     url: '*://*.codebasehq.com/*',
     name: 'Codebase'
+  },
+  'corgee.com': {
+    url: '*://*.corgee.com/*',
+    name: 'Corgee'
   },
   'desk.com': {
     url: '*://*.desk.com/web/agent/*',
@@ -122,6 +132,10 @@ export default {
     name: 'DokuWiki',
     file: 'dokuwiki.js'
   },
+  'dom-integration': {
+    url: '*://toggl-button-dom-demo.now.sh/*',
+    name: 'DOM Integration'
+  },
   'draftin.com': {
     url: '*://*.draftin.com/*',
     name: 'Draftin'
@@ -133,6 +147,10 @@ export default {
   'drupal.org': {
     url: '*://*.drupal.org/*',
     name: 'Drupal'
+  },
+  'dynamics.com': {
+    url: '*://*.dynamics.com/*',
+    name: 'Dynamics 365'
   },
   'eproject.me': {
     url: '*://*.eproject.me/*',
@@ -157,6 +175,10 @@ export default {
   'feedly.com': {
     url: '*://*.feedly.com/*',
     name: 'Feedly'
+  },
+  'fibery.io': {
+    url: '*://*.fibery.io/*',
+    name: 'Fibery'
   },
   'focuster.com': {
     url: '*://*.focuster.com/*',
@@ -194,6 +216,10 @@ export default {
     url: '*://calendar.google.com/*',
     name: 'Google Calendar'
   },
+  'classroom.google.com': {
+    url: '*://classroom.google.com/*',
+    name: 'Google Classroom'
+  },
   'docs.google.com': {
     url: '*://docs.google.com/*',
     name: 'Google Docs'
@@ -206,7 +232,7 @@ export default {
     url: '*://keep.google.com/*',
     name: 'Google Keep'
   },
-  'khanacademy.org': {
+  'www.khanacademy.org': {
     url: '*://www.khanacademy.org/*',
     name: 'KhanAcademy'
   },
@@ -214,7 +240,7 @@ export default {
     url: '*://mail.google.com/*',
     name: 'Google Mail'
   },
-  'gqueues.com': {
+  'www.gqueues.com': {
     url: '*://www.gqueues.com/*',
     name: 'GQueues'
   },
@@ -222,15 +248,19 @@ export default {
     url: '*://habitica.com/*',
     name: 'Habitica'
   },
-  'heflo.com': {
+  'app.heflo.com': {
     url: '*://app.heflo.com/*',
     name: 'HEFLO'
   },
-  'helpscout.net': {
+  'helprace.com': {
+    url: '*://*.helprace.com/*',
+    name: 'Helprace'
+  },
+  'secure.helpscout.net': {
     url: '*://secure.helpscout.net/*',
     name: 'Helpscout'
   },
-  'huskymarketingplanner.com': {
+  'app.huskymarketingplanner.com': {
     url: '*://app.huskymarketingplanner.com/*',
     name: 'Husky Marketing Planner',
     file: 'husky-marketing-planner.js'
@@ -261,9 +291,18 @@ export default {
     url: '*://*.kanban.ist/*',
     name: 'Kanbanist'
   },
-  'liquidplanner.com': {
+  'kantree.io': {
+    url: '*://*.kantree.io/*',
+    name: 'Kantree'
+  },
+  'app.liquidplanner.com': {
     url: '*://app.liquidplanner.com/*',
     name: 'Liquidplanner'
+  },
+  'ladesk.com': {
+    url: '*://*.ladesk.com/*',
+    name: 'LiveAgent',
+    file: 'liveagent.js'
   },
   'mantishub.com': {
     url: '*://*.mantishub.com/*',
@@ -274,7 +313,7 @@ export default {
     name: 'Mantishub',
     clone: 'true'
   },
-  'meistertask.com': {
+  'www.meistertask.com': {
     url: '*://www.meistertask.com/*',
     name: 'MeisterTask'
   },
@@ -294,10 +333,10 @@ export default {
   },
   'notion.so': {
     url: '*://*.notion.so/*',
-    name: 'Notion by Matt',
+    name: 'Notion',
     file: 'notion.js'
   },
-  'nozbe.com': {
+  'app.nozbe.com': {
     url: '*://app.nozbe.com/*',
     name: 'Nozbe'
   },
@@ -322,7 +361,7 @@ export default {
     url: '*://*.onshape.com/*',
     name: 'Onshape'
   },
-  'osticket.com': {
+  'supportsystem.com': {
     url: '*://*.supportsystem.com/*',
     name: 'osTicket',
     file: 'osticket.js'
@@ -349,6 +388,11 @@ export default {
     url: '*://*.pivotaltracker.com/*',
     name: 'PivotalTracker'
   },
+  'placker.com': {
+    url: '*://*.placker.com/*',
+    name: 'Placker',
+    file: 'placker.js'
+  },
   'planbox.com': {
     url: '*://*.planbox.com/*',
     name: 'Planbox'
@@ -362,8 +406,8 @@ export default {
     name: 'ProcessWire'
   },
   'produck.io': {
-    'url': '*://*.produck.io/*',
-    'name': 'Produck'
+    url: '*://*.produck.io/*',
+    name: 'Produck'
   },
   'producteev.com': {
     url: '*://*.producteev.com/*',
@@ -459,7 +503,7 @@ export default {
     url: '*://*.smartboard.cl/*',
     name: 'Smartboard'
   },
-  'sourcelair.com': {
+  'www.sourcelair.com': {
     url: '*://www.sourcelair.com/*',
     name: 'Sourcelair'
   },
@@ -483,10 +527,6 @@ export default {
     url: '*://tasks.office.com/*',
     name: 'Microsoft Planner'
   },
-  'teamweek.com': {
-    url: '*://*.teamweek.com/*',
-    name: 'Teamweek'
-  },
   'teamwork.com': {
     url: '*://*.teamwork.com/*',
     name: 'Teamwork'
@@ -509,8 +549,18 @@ export default {
     url: '*://ticktick.com/*,*://*.ticktick.com/*',
     name: 'TickTick'
   },
+  'to-do.live.com': {
+    url: '*://*.to-do.live.com/*',
+    name: 'Microsoft To-Do',
+    file: 'microsoft-to-do.js'
+  },
   'to-do.microsoft.com': {
     url: '*://*.to-do.microsoft.com/*',
+    name: 'Microsoft To-Do',
+    file: 'microsoft-to-do.js'
+  },
+  'to-do.office.com': {
+    url: '*://*.to-do.office.com/*',
     name: 'Microsoft To-Do',
     file: 'microsoft-to-do.js'
   },
@@ -524,9 +574,14 @@ export default {
     clone: 'true'
   },
   'www.toggl.com': {
-    url: '*://*.toggl.com/*',
+    url: '*://www.toggl.com/*',
     name: 'Toggl',
     clone: 'true'
+  },
+  'plan.toggl.com': {
+    url: '*://plan.toggl.com/*',
+    name: 'Toggl Plan',
+    file: 'toggl-plan.js'
   },
   'toodledo.com': {
     url: '*://*.toodledo.com/*',
@@ -641,7 +696,7 @@ export default {
     url: '*://overv.io/*',
     name: 'Overv'
   },
-  'teamleader.eu': {
+  'app.teamleader.eu': {
     url: '*://app.teamleader.eu/*',
     name: 'Teamleader'
   },
@@ -649,9 +704,17 @@ export default {
     url: '*://*.manageengine.com/*',
     name: 'ManageEngine'
   },
-  'vivifyscrum.com': {
+  'app.vivifyscrum.com': {
     url: '*://app.vivifyscrum.com/*',
     name: 'VivifyScrum',
     clone: 'true'
+  },
+  'zammad.com': {
+    url: '*://*.zammad.com/*',
+    name: 'Zammad'
+  },
+  'app.zenhub.com': {
+    url: '*://app.zenhub.com/*',
+    name: 'Zenhub'
   }
 };

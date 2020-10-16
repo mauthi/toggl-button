@@ -111,3 +111,66 @@ togglbutton.render(
     container.appendChild(link);
   }
 );
+
+// Teamwork Desk - new design 2019
+togglbutton.render(
+  '.ticket-view-page__main-content:not(.toggl)',
+  { observe: true },
+  function (elem) {
+    // ticket view
+    const container = $('.title', elem);
+    const id = $('.ticket-id', elem).textContent;
+    const description = $('.title__subject', elem).textContent;
+
+    const descFunc = function () {
+      return id.trim() + ' ' + description.trim();
+    };
+
+    const link = togglbutton.createTimerLink({
+      className: 'teamwork',
+      buttonType: 'minimal',
+      description: descFunc
+    });
+
+    link.style.margin = '3px 0 0 7px';
+
+    container.appendChild(link);
+  }
+);
+
+// Teamwork (July 2020)
+togglbutton.render(
+  '.task-groupHold-wrapper .task-row .row-content-holder:not(.toggl), .s-project-task__tasklist .row-content-holder:not(.toggl)',
+  { observe: true },
+  function (root) {
+    const getNameHolder = () => root.querySelector('.w-task-row__name > a');
+
+    if (!getNameHolder()) { return; }
+
+    const link = togglbutton.createTimerLink({
+      className: 'teamwork',
+      buttonType: 'minimal',
+      description: () => getNameHolder().textContent.trim(),
+      projectName: () => {
+        const nameElement = $('.w-header-titles__project-name a');
+        return nameElement ? nameElement.textContent.trim() : '';
+      }
+    });
+
+    Object.assign(link.style, {
+      backgroundSize: '16px',
+      marginTop: '7px',
+      marginLeft: '2px'
+    });
+
+    link.setAttribute('data-content', 'Toggl Button');
+
+    link.classList.add(
+      'w-task-row__option',
+      'integration--hide',
+      'tipped-delegate',
+      'show-on-mouseenter');
+
+    root.appendChild(link);
+  }
+);

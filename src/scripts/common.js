@@ -1,4 +1,6 @@
 import { ProjectAutoComplete, TagAutoComplete } from './lib/autocomplete';
+/* eslint-disable-next-line import/no-webpack-loader-syntax */
+import togglButtonSVG from '!!raw-loader!./icons/toggl-button.svg';
 const browser = require('webextension-polyfill');
 
 let projectAutocomplete; let tagAutocomplete;
@@ -40,20 +42,6 @@ function invokeIfFunction (trial) {
   return trial;
 }
 
-function getFullPageHeight () {
-  const body = document.body;
-
-  const html = document.documentElement;
-
-  return Math.max(
-    body.scrollHeight,
-    body.offsetHeight,
-    html.clientHeight,
-    html.scrollHeight,
-    html.offsetHeight
-  );
-}
-
 function setCursorAtBeginning (elem) {
   elem.focus();
   elem.setSelectionRange(0, 0);
@@ -92,6 +80,19 @@ function secondsToTime (duration, format) {
   return response;
 }
 
+function setLinkText (link, text) {
+  let span = link.querySelector('svg+span');
+  const title = link.querySelector('svg title');
+
+  if (!span) {
+    span = document.createElement('span');
+    link.appendChild(span);
+  }
+
+  title.textContent = text;
+  span.textContent = text;
+}
+
 window.togglbutton = {
   $billable: null,
   isStarted: false,
@@ -106,7 +107,6 @@ window.togglbutton = {
   user: {},
   duration_format: '',
   currentDescription: '',
-  fullPageHeight: getFullPageHeight(),
   fullVersion: 'TogglButton',
   render: function (selector, opts, renderer, mutationSelector) {
     browser.runtime.sendMessage({ type: 'activate' })
@@ -204,9 +204,10 @@ window.togglbutton = {
     if (left + editFormWidth > window.innerWidth) {
       left = window.innerWidth - 10 - editFormWidth;
     }
-    if (top + editFormHeight > togglbutton.fullPageHeight) {
+    if (top + editFormHeight > window.innerHeight) {
       top = window.innerHeight + document.body.scrollTop - 10 - editFormHeight;
     }
+
     return { left: left, top: top };
   },
 
@@ -280,7 +281,7 @@ window.togglbutton = {
   },
 
   toggleBillable: function (visible) {
-    const tabIndex = visible ? '103' : '-1';
+    const tabIndex = visible ? '0' : '-1';
     togglbutton.$billable.setAttribute('tabindex', tabIndex);
     togglbutton.$billable.classList.toggle('no-billable', !visible);
   },
@@ -328,8 +329,21 @@ window.togglbutton = {
     editForm = div.firstChild;
     editForm.style.left = position.left + 'px';
     editForm.style.top = position.top + 'px';
+    editForm.style.position = 'fixed';
     editForm.classList.add('toggl-integration');
-    document.body.appendChild(editForm);
+
+    if (response.darkMode) {
+      editForm.classList.add('dark');
+    }
+
+    // Some integrations uses trap zones which prevents from focus everything inside this element
+    // See: https://github.com/theKashey/focus-lock
+    editForm.setAttribute('data-no-focus-lock', true);
+
+    // if a container was provided to createTimerlink, append editForm to that container
+    // for avoiding unwanted interactions with some services' events
+    const container = response.container ? document.querySelector(response.container) : document.body;
+    container.appendChild(editForm);
     togglbutton.$billable = $('.tb-billable', editForm);
 
     projectAutocomplete = new ProjectAutoComplete('project', 'li', togglbutton);
@@ -387,6 +401,18 @@ window.togglbutton = {
       }
     });
 
+    // Cancel button
+    $('#tb-edit-form-cancel', editForm).addEventListener('click', function (e) {
+      e.preventDefault();
+      closeForm();
+    });
+    $('#tb-edit-form-cancel').addEventListener('keydown', function (e) {
+      if (e.code === 'Enter' || e.code === 'Space') {
+        e.preventDefault();
+        closeForm();
+      }
+    });
+
     $('form', editForm).addEventListener('submit', function (e) {
       submitForm(this);
       e.preventDefault();
@@ -398,7 +424,7 @@ window.togglbutton = {
       link.classList.remove('active');
       link.style.color = '';
       if (!link.classList.contains('min')) {
-        link.textContent = 'Start timer';
+        setLinkText(link, 'Start Timer');
       }
       browser.runtime
         .sendMessage({ type: 'stop' })
@@ -407,6 +433,18 @@ window.togglbutton = {
       closeForm();
       return false;
     });
+
+    function closeOnClickOutside (e) {
+      if (editForm.style.display !== 'none') {
+        const editFormPopup = document.getElementById('toggl-button-edit-form');
+        if (!editFormPopup.contains(e.target)) {
+          closeForm();
+          return false;
+        }
+      }
+    }
+
+    document.addEventListener('click', closeOnClickOutside);
 
     /* prevent certain host webapps from processing key commands */
     $('form', editForm).addEventListener('keydown', function (e) {
@@ -470,11 +508,17 @@ window.togglbutton = {
       link.title = 'Start timer: ' + link.title;
     }
 
+    link.innerHTML = togglButtonSVG;
+
+    if (params.buttonType !== 'minimal') {
+      setLinkText(link, 'Start Timer');
+    }
+
     link.addEventListener('click', function (e) {
       let opts;
       e.preventDefault();
       e.stopPropagation();
-      link = e.target;
+      link = e.currentTarget;
 
       if (link.classList.contains('active')) {
         togglbutton.deactivateTimerLink(link);
@@ -494,12 +538,16 @@ window.togglbutton = {
           projectName: invokeIfFunction(params.projectName),
           createdWith: togglbutton.fullVersion + '-' + togglbutton.serviceName,
           service: togglbutton.serviceName,
-          url: window.location.href
+          url: window.location.href,
+          container: params.container || ''
         };
       }
-      togglbutton.element = e.target;
+      togglbutton.element = e.currentTarget;
+
       browser.runtime
-        .sendMessage(opts)
+        // Stop current time entry before starting a new one
+        .sendMessage({ type: 'stop' })
+        .then(() => browser.runtime.sendMessage(opts))
         .then(togglbutton.addEditForm);
 
       return false;
@@ -524,12 +572,21 @@ window.togglbutton = {
       return;
     }
 
-    const current = Array.from(document.querySelectorAll(
+    // Sort to find the "Best matching button".
+    // E.g. if running entry is `I am cat`, it should match `I am cat` over `I am cat and dog`
+    // Note: don't know why this isn't an exact match, probably some legacy reasons.
+    const matchingButtons = Array.from(document.querySelectorAll(
       '.toggl-button:not(.toggl-button-edit-form-button)'))
-      .find(button => button.title.indexOf(entry.description) !== -1);
+      .filter(button => button.title.indexOf(entry.description) !== -1)
+      .sort((a, b) => {
+        if (a.title.length > b.title.length) return -1;
+        if (b.title.length < a.title.length) return 1;
+        return 0;
+      });
+    const bestMatch = matchingButtons.pop();
 
-    if (current) {
-      togglbutton.activateTimerLink(current);
+    if (bestMatch) {
+      togglbutton.activateTimerLink(bestMatch);
     } else {
       togglbutton.deactivateAllTimerLinks();
     }
@@ -546,7 +603,7 @@ window.togglbutton = {
 
     const isMinimal = link.classList.contains('min');
     if (!isMinimal) {
-      link.textContent = 'Stop timer';
+      setLinkText(link, 'Stop timer');
     }
   },
 
@@ -563,7 +620,7 @@ window.togglbutton = {
     link.style.color = '';
     const minimal = link.classList.contains('min');
     if (!minimal) {
-      link.textContent = 'Start timer';
+      setLinkText(link, 'Start timer');
     }
   },
 
