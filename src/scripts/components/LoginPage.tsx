@@ -16,7 +16,6 @@ import {
 } from '../@toggl/ui/components';
 import Logo from '../icons/Logo';
 import Spinner from './Spinner';
-import bugsnagClient from '../lib/bugsnag';
 import QuickStartGuide from './QuickStartGuide';
 import LoginForm from './LoginForm';
 
